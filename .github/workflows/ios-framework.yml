@@ -20,7 +20,9 @@ jobs:
           gradle-version: '8.14'
       - name: Install XcodeGen
         run: brew install xcodegen
-      - name: Build shared iOS framework
+      - name: Build iPhone device framework
+        run: gradle :composeApp:linkDebugFrameworkIosArm64
+      - name: Build iOS Simulator framework
         run: gradle :composeApp:linkDebugFrameworkIosSimulatorArm64
       - name: Generate native Xcode project
         working-directory: iosApp
