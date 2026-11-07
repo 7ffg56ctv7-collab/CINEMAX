@@ -23,9 +23,12 @@ kotlin {
             implementation(libs.ktor.serialization.kotlinx.json)
         }
         androidMain.dependencies {
+            implementation("io.ktor:ktor-client-okhttp:3.3.0")
             implementation("androidx.activity:activity-compose:1.10.1")
         }
-        iosMain.dependencies { }
+        iosMain.dependencies {
+            implementation("io.ktor:ktor-client-darwin:3.3.0")
+        }
     }
 }
 
