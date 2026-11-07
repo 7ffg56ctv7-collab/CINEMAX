@@ -21,7 +21,10 @@ object StremioAddonClient {
             parsed.host in setOf("127.0.0.1", "localhost", "::1")
         if (!secure && !localDevelopment) return null
         if (parsed.user.isNotEmpty() || parsed.password.isNotEmpty()) return null
-        return if (value.endsWith("/manifest.json")) value else "$value/manifest.json"
+        val queryIndex = value.indexOf('?').takeIf { it >= 0 } ?: value.length
+        val path = value.substring(0, queryIndex)
+        val query = value.substring(queryIndex)
+        return if (path.endsWith("/manifest.json")) value else "$path/manifest.json$query"
     }
 
     /**
@@ -36,7 +39,11 @@ object StremioAddonClient {
         extra: Map<String, String> = emptyMap()
     ): String {
         require(isSupportedResource(resource)) { "Unsupported Stremio resource" }
-        val base = baseManifestUrl.removeSuffix("/manifest.json").removeSuffix("/")
+        val withoutFragment = baseManifestUrl.substringBefore('#')
+        val queryIndex = withoutFragment.indexOf('?').takeIf { it >= 0 } ?: withoutFragment.length
+        val manifestPath = withoutFragment.substring(0, queryIndex)
+        val query = withoutFragment.substring(queryIndex)
+        val base = manifestPath.removeSuffix("/manifest.json").removeSuffix("/")
         val path = buildString {
             append(base)
             append("/")
@@ -54,7 +61,7 @@ object StremioAddonClient {
             }
             append(".json")
         }
-        return path
+        return path + query
     }
 
     fun isSupportedResource(resource: String): Boolean =
