@@ -14,13 +14,15 @@ CINEMAX is an early-stage, Arabic-first, cross-platform media client project bui
 - Shared protocol tests and an Android GitHub Actions build workflow.
 
 ## Not complete yet
-This repository is not yet a release-ready streaming application. A native SwiftUI iOS app shell and XcodeGen project definition now live in `iosApp/`, with a macOS GitHub Actions workflow that builds an unsigned iOS Simulator app artifact. Cross-addon search aggregation, external subtitle selection, richer playback controls, Nuvio repository discovery/JS sandbox, account sync, accessibility/localization polish, Apple signing, and end-to-end physical-device testing remain to be implemented.
+This repository is not yet a release-ready streaming application. A native SwiftUI iOS app shell and XcodeGen project definition now live in `iosApp/`, with a macOS GitHub Actions workflow that builds unsigned iOS Simulator and iPhone app artifacts. Cross-addon search aggregation, external subtitle selection, richer playback controls, Nuvio repository discovery/JS sandbox, account sync, accessibility/localization polish, Apple signing, and end-to-end physical-device testing remain to be implemented.
 
 ## Build
-Requirements: JDK 17+, Android SDK, and macOS/Xcode for iOS. See `iosApp/README.md` for the native iOS build commands. The iOS CI workflow builds the shared simulator framework, generates the Xcode project with XcodeGen, and packages an unsigned Simulator `.app` zip. This is not a signed iPhone installation package.
+Requirements: JDK 17+, Android SDK, and macOS/Xcode for iOS. See `iosApp/README.md` for the native iOS build commands. The iOS CI workflow builds device and simulator frameworks, combines them into an XCFramework, generates the Xcode project with XcodeGen, and packages unsigned Simulator and iPhone `.app` outputs. The iPhone output is not signed and is not directly installable or distributable.
 
 The Android CI workflow runs:
+`gradle :composeApp:testDebugUnitTest`
 `gradle :composeApp:assembleDebug`
+and uploads the debug APK as a workflow artifact.
 
 ## Compatibility and safety
 Stremio addons are remote HTTP services; their responses are parsed as data and never evaluated as code. Compatibility is provider-specific and must be tested. Nuvio plugins are a different executable JavaScript format; do not execute them without a hardened sandbox, explicit consent, and strict limits. Use only content sources you are authorized to access. CINEMAX does not host media.
