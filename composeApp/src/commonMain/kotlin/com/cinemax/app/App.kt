@@ -29,11 +29,12 @@ private val Accent = Color(0xFF8B5CF6)
 fun App() {
     val http = remember { createCinemaxHttpClient() }
     val repository = remember { AddonRepository(http) }
+    val addonStore = remember { AddonSettingsStore() }
     val scope = rememberCoroutineScope()
-    val addons = remember { mutableStateListOf<InstalledAddon>() }
+    val addons = remember { mutableStateListOf<InstalledAddon>().apply { addAll(addonStore.load()) } }
     val catalogItems = remember { mutableStateListOf<StremioMetaPreview>() }
     val streams = remember { mutableStateListOf<StremioStream>() }
-    var activeAddon by remember { mutableStateOf<InstalledAddon?>(null) }
+    var activeAddon by remember { mutableStateOf(addons.lastOrNull()) }
     var selectedItem by remember { mutableStateOf<StremioMetaPreview?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     var addonUrl by remember { mutableStateOf("") }
@@ -152,6 +153,7 @@ fun App() {
                                 )
                                 addons.removeAll { it.id == installed.id }
                                 addons.add(installed)
+                                addonStore.save(addons.toList())
                                 activeAddon = installed
                                 catalogItems.clear()
                                 val catalog = manifest.catalogs.firstOrNull()
