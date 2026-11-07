@@ -51,6 +51,7 @@ fun App() {
     var status by remember { mutableStateOf("أضف إضافة Stremio متوافقة للبدء") }
     var loading by remember { mutableStateOf(false) }
     var loadingStreams by remember { mutableStateOf(false) }
+    var playbackUrl by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(selectedItem?.id, activeAddon?.id) {
         val item = selectedItem
@@ -338,13 +339,47 @@ fun App() {
                                 Spacer(Modifier.height(8.dp))
                                 Text("${index + 1}. ${stream.name ?: stream.title ?: "مصدر"}", fontWeight = FontWeight.SemiBold)
                                 stream.title?.let { Text(it, fontSize = 12.sp, color = Color.Gray) }
-                                stream.url?.let { Text(it, fontSize = 10.sp, color = Color.Gray, maxLines = 2) }
+                                stream.url?.let { mediaUrl ->
+                                    Text(mediaUrl, fontSize = 10.sp, color = Color.Gray, maxLines = 2)
+                                    Spacer(Modifier.height(4.dp))
+                                    Button(onClick = {
+                                        if (com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl(mediaUrl)) {
+                                            playbackUrl = mediaUrl
+                                        } else {
+                                            status = "تم رفض رابط تشغيل غير آمن. يجب أن يستخدم HTTPS."
+                                        }
+                                    }) { Text("▶ تشغيل") }
+                                } ?: Text(
+                                    "هذا المصدر لا يحتوي على رابط HTTP مباشر قابل للتشغيل داخل التطبيق.",
+                                    color = Color.Gray,
+                                    fontSize = 11.sp
+                                )
                             }
                         }
                     }
                 },
                 confirmButton = { TextButton(onClick = { selectedItem = null }) { Text("إغلاق") } }
             )
+        }
+        playbackUrl?.let { mediaUrl ->
+            Dialog(onDismissRequest = { playbackUrl = null }) {
+                Column(
+                    modifier = Modifier.fillMaxWidth()
+                        .background(Color.Black, RoundedCornerShape(16.dp))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("مشغل CINEMAX", color = Color.White, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { playbackUrl = null }) { Text("إغلاق") }
+                    }
+                    NativeVideoPlayer(
+                        url = mediaUrl,
+                        modifier = Modifier.fillMaxWidth().height(260.dp)
+                    )
+                }
+            }
         }
     }
 }
