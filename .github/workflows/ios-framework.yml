@@ -1,4 +1,4 @@
-name: iOS framework build
+name: iOS app build
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
 
 jobs:
-  ios-simulator-framework:
+  ios-simulator-app:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
@@ -18,5 +18,29 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14'
-      - name: Build iOS Simulator framework
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Build shared iOS framework
         run: gradle :composeApp:linkDebugFrameworkIosSimulatorArm64
+      - name: Generate native Xcode project
+        working-directory: iosApp
+        run: xcodegen generate
+      - name: Build iOS Simulator app
+        run: |
+          xcodebuild \
+            -project iosApp/CINEMAX.xcodeproj \
+            -scheme CINEMAX \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -derivedDataPath build/ios-derived \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Package simulator app
+        run: |
+          APP_PATH=$(find build/ios-derived/Build/Products -maxdepth 2 -name 'CINEMAX.app' -type d | head -n 1)
+          test -n "$APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" build/CINEMAX-iOS-Simulator.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CINEMAX-iOS-Simulator
+          path: build/CINEMAX-iOS-Simulator.zip
+          if-no-files-found: error
