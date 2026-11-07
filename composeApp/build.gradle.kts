@@ -22,6 +22,8 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation("com.russhwolf:multiplatform-settings-no-arg:1.3.0")
+            implementation("io.coil-kt.coil3:coil-compose:3.3.0")
+            implementation("io.coil-kt.coil3:coil-network-ktor3:3.3.0")
         }
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:3.3.0")
