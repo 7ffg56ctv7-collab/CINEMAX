@@ -36,6 +36,11 @@ fun App() {
     val streams = remember { mutableStateListOf<StremioStream>() }
     var activeAddon by remember { mutableStateOf(addons.lastOrNull()) }
     var selectedItem by remember { mutableStateOf<StremioMetaPreview?>(null) }
+    var selectedMeta by remember { mutableStateOf<com.cinemax.app.addons.StremioMeta?>(null) }
+    var activeCatalogType by remember { mutableStateOf<String?>(null) }
+    var activeCatalogId by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var searching by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
     var addonUrl by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("أضف إضافة Stremio متوافقة للبدء") }
@@ -50,6 +55,8 @@ fun App() {
                 val manifest = repository.loadManifest(restoredAddon.manifestUrl)
                 val catalog = manifest.catalogs.firstOrNull()
                 if (catalog != null) {
+                    activeCatalogType = catalog.type
+                    activeCatalogId = catalog.id
                     catalogItems.addAll(repository.loadCatalog(restoredAddon.manifestUrl, catalog.type, catalog.id))
                     status = "تم استعادة ${restoredAddon.name} • ${catalogItems.size} عنصرًا"
                 } else {
@@ -104,6 +111,48 @@ fun App() {
             Spacer(Modifier.height(18.dp))
             Text("اكتشف", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
+            if (activeAddon != null && activeCatalogType != null && activeCatalogId != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        label = { Text("ابحث في هذا المصدر") }
+                    )
+                    Button(
+                        enabled = searchQuery.isNotBlank() && !searching && !loading,
+                        onClick = {
+                            val addon = activeAddon ?: return@Button
+                            val type = activeCatalogType ?: return@Button
+                            val catalogId = activeCatalogId ?: return@Button
+                            searching = true
+                            scope.launch {
+                                try {
+                                    val results = repository.searchCatalog(
+                                        addon.manifestUrl, type, catalogId, searchQuery
+                                    )
+                                    catalogItems.clear()
+                                    catalogItems.addAll(results)
+                                    status = "نتائج البحث: ${results.size}"
+                                } catch (error: Throwable) {
+                                    status = "تعذر البحث: ${error.message ?: "خطأ غير معروف"}"
+                                } finally {
+                                    searching = false
+                                }
+                            }
+                        }
+                    ) { Text("بحث") }
+                }
+                if (searching) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+                Spacer(Modifier.height(8.dp))
+            }
             if (catalogItems.isEmpty()) {
                 Text("ستظهر عناصر الكتالوج هنا بعد تثبيت إضافة توفر كتالوجًا.", color = Color.LightGray, fontSize = 13.sp)
             } else {
@@ -112,12 +161,14 @@ fun App() {
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable {
                                 selectedItem = item
+                                selectedMeta = null
                                 streams.clear()
                                 val addon = activeAddon
                                 if (addon != null) {
                                     loadingStreams = true
                                     scope.launch {
                                         try {
+                                            selectedMeta = repository.loadMeta(addon.manifestUrl, item.type, item.id)
                                             streams.addAll(repository.loadStreams(addon.manifestUrl, item.type, item.id))
                                         } catch (error: Throwable) {
                                             status = "تعذر جلب المصادر: ${error.message ?: "خطأ غير معروف"}"
@@ -179,10 +230,14 @@ fun App() {
                                 catalogItems.clear()
                                 val catalog = manifest.catalogs.firstOrNull()
                                 if (catalog != null) {
+                                    activeCatalogType = catalog.type
+                                    activeCatalogId = catalog.id
                                     val loaded = repository.loadCatalog(normalized, catalog.type, catalog.id)
                                     catalogItems.addAll(loaded)
                                     status = "تم تثبيت ${manifest.name} وجلب ${loaded.size} عنصرًا"
                                 } else {
+                                    activeCatalogType = null
+                                    activeCatalogId = null
                                     status = "تم تثبيت ${manifest.name}، ولا تعلن الإضافة عن كتالوج."
                                 }
                                 addonUrl = ""
@@ -204,6 +259,18 @@ fun App() {
                 title = { Text(selectedItem?.name ?: "مصادر المشاهدة") },
                 text = {
                     Column {
+                        selectedMeta?.let { meta ->
+                            meta.releaseInfo?.let { Text("سنة الإصدار: $it", fontSize = 12.sp) }
+                            meta.imdbRating?.let { Text("التقييم: $it", fontSize = 12.sp) }
+                            meta.runtime?.let { Text("المدة: $it", fontSize = 12.sp) }
+                            meta.genres.takeIf { it.isNotEmpty() }?.let {
+                                Text("التصنيفات: ${it.joinToString("، ")}", fontSize = 12.sp)
+                            }
+                            meta.description?.takeIf { it.isNotBlank() }?.let {
+                                Spacer(Modifier.height(6.dp))
+                                Text(it, fontSize = 13.sp)
+                            }
+                        }
                         if (loadingStreams) {
                             LinearProgressIndicator(Modifier.fillMaxWidth())
                             Text("جارٍ جلب المصادر...", modifier = Modifier.padding(top = 8.dp))
