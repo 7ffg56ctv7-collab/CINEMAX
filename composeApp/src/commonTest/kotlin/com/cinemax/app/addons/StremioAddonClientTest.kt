@@ -28,6 +28,21 @@ class StremioAddonClientTest {
     }
 
     @Test
+    fun encodesCatalogExtraArgumentsAsSeparateSegments() {
+        val url = StremioAddonClient.resourceUrl(
+            "https://addon.example/manifest.json",
+            "catalog",
+            "movie",
+            "popular",
+            mapOf("search" to "batman & robin")
+        )
+        assertEquals(
+            "https://addon.example/catalog/movie/popular/search=batman%20%26%20robin.json",
+            url
+        )
+    }
+
+    @Test
     fun permitsOnlyKnownResources() {
         assertTrue(StremioAddonClient.isSupportedResource("catalog"))
         assertTrue(StremioAddonClient.isSupportedResource("stream"))
