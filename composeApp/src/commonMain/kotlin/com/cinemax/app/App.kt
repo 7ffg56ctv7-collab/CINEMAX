@@ -20,6 +20,7 @@ import com.cinemax.app.addons.AddonRepository
 import com.cinemax.app.addons.StremioMetaPreview
 import com.cinemax.app.addons.StremioStream
 import com.cinemax.app.addons.createCinemaxHttpClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private val Ink = Color(0xFF090B12)
@@ -62,6 +63,7 @@ fun App() {
                 selectedMeta = repository.loadMeta(addon.manifestUrl, item.type, item.id)
                 streams.addAll(repository.loadStreams(addon.manifestUrl, item.type, item.id))
             } catch (error: Throwable) {
+                if (error is CancellationException) throw error
                 status = "تعذر جلب تفاصيل العنصر أو مصادره: ${error.message ?: "خطأ غير معروف"}"
             } finally {
                 loadingStreams = false
