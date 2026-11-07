@@ -97,6 +97,7 @@ fun App() {
                     status = "تم استعادة ${restoredAddon.name}؛ لا يوجد كتالوج معلن."
                 }
             } catch (error: Throwable) {
+                if (error is CancellationException) throw error
                 status = "تعذر استعادة الكتالوج: ${error.message ?: "خطأ غير معروف"}"
             } finally {
                 loading = false
@@ -396,6 +397,7 @@ fun App() {
                                 }
                                 addonUrl = ""
                             } catch (error: Throwable) {
+                                if (error is CancellationException) throw error
                                 status = "تعذر تثبيت الإضافة: ${error.message ?: "خطأ غير معروف"}"
                             } finally {
                                 loading = false
