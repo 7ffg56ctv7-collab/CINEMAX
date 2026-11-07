@@ -35,6 +35,7 @@ fun App() {
     val scope = rememberCoroutineScope()
     val addons = remember { mutableStateListOf<InstalledAddon>().apply { addAll(addonStore.load()) } }
     val catalogItems = remember { mutableStateListOf<StremioMetaPreview>() }
+    val availableCatalogs = remember { mutableStateListOf<com.cinemax.app.addons.StremioCatalog>() }
     val streams = remember { mutableStateListOf<StremioStream>() }
     var activeAddon by remember { mutableStateOf(addons.lastOrNull()) }
     var selectedItem by remember { mutableStateOf<StremioMetaPreview?>(null) }
@@ -82,6 +83,8 @@ fun App() {
             loading = true
             try {
                 val manifest = repository.loadManifest(restoredAddon.manifestUrl)
+                availableCatalogs.clear()
+                availableCatalogs.addAll(manifest.catalogs)
                 val catalog = manifest.catalogs.firstOrNull()
                 if (catalog != null) {
                     activeCatalogType = catalog.type
@@ -111,6 +114,8 @@ fun App() {
         scope.launch {
             try {
                 val manifest = repository.loadManifest(addon.manifestUrl)
+                availableCatalogs.clear()
+                availableCatalogs.addAll(manifest.catalogs)
                 val catalog = manifest.catalogs.firstOrNull()
                 if (catalog == null) {
                     activeCatalogType = null
@@ -198,6 +203,39 @@ fun App() {
             }
             Spacer(Modifier.height(18.dp))
             Text("اكتشف", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            if (availableCatalogs.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    availableCatalogs.forEach { catalog ->
+                        FilterChip(
+                            selected = activeCatalogType == catalog.type && activeCatalogId == catalog.id,
+                            onClick = {
+                                val addon = activeAddon ?: return@FilterChip
+                                activeCatalogType = catalog.type
+                                activeCatalogId = catalog.id
+                                activeCatalogSupportsSearch = catalog.extra.any { it.name == "search" }
+                                activeCatalogSupportsSkip = catalog.extra.any { it.name == "skip" }
+                                searchQuery = ""
+                                catalogItems.clear()
+                                loading = true
+                                scope.launch {
+                                    try {
+                                        val items = repository.loadCatalog(addon.manifestUrl, catalog.type, catalog.id)
+                                        catalogItems.addAll(items)
+                                        status = "تم تحميل ${catalog.name ?: catalog.id} • ${items.size} عنصرًا"
+                                    } catch (error: Throwable) {
+                                        if (error is CancellationException) throw error
+                                        status = "تعذر تحميل الكتالوج: ${error.message ?: "خطأ غير معروف"}"
+                                    } finally {
+                                        loading = false
+                                    }
+                                }
+                            },
+                            label = { Text(catalog.name ?: catalog.id) }
+                        )
+                    }
+                }
+            }
             Spacer(Modifier.height(8.dp))
             if (activeAddon != null && activeCatalogType != null && activeCatalogId != null && activeCatalogSupportsSearch) {
                 Row(
@@ -327,6 +365,8 @@ fun App() {
                         scope.launch {
                             try {
                                 val manifest = repository.loadManifest(input)
+                                availableCatalogs.clear()
+                                availableCatalogs.addAll(manifest.catalogs)
                                 val normalized = com.cinemax.app.addons.StremioAddonClient.manifestUrl(input)!!
                                 val installed = InstalledAddon(
                                     manifestUrl = normalized, id = manifest.id, name = manifest.name,
