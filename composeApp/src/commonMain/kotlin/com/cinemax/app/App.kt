@@ -111,6 +111,8 @@ fun App() {
         activeAddon = addon
         catalogItems.clear()
         selectedItem = null
+        playbackUrl = null
+        streams.clear()
         searchQuery = ""
         loading = true
         scope.launch {
@@ -207,6 +209,8 @@ fun App() {
                             selected = activeCatalogType == catalog.type && activeCatalogId == catalog.id,
                             onClick = {
                                 val addon = activeAddon ?: return@FilterChip
+                                selectedItem = null
+                                playbackUrl = null
                                 activeCatalogType = catalog.type
                                 activeCatalogId = catalog.id
                                 activeCatalogSupportsSearch = catalog.extra.any { it.name == "search" }
@@ -376,6 +380,10 @@ fun App() {
                                 addons.add(installed)
                                 addonStore.save(addons.toList())
                                 activeAddon = installed
+                                selectedItem = null
+                                playbackUrl = null
+                                streams.clear()
+                                searchQuery = ""
                                 catalogItems.clear()
                                 val catalog = manifest.catalogs.firstOrNull()
                                 if (catalog != null) {
