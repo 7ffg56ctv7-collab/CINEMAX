@@ -43,6 +43,16 @@ class StremioAddonClientTest {
     }
 
     @Test
+    fun preservesAddonConfigurationQueryParameters() {
+        val manifest = StremioAddonClient.manifestUrl("https://addon.example/config?token=a%2Fb")
+        assertEquals("https://addon.example/config/manifest.json?token=a%2Fb", manifest)
+        assertEquals(
+            "https://addon.example/config/stream/movie/tt123.json?token=a%2Fb",
+            StremioAddonClient.resourceUrl(manifest!!, "stream", "movie", "tt123")
+        )
+    }
+
+    @Test
     fun permitsOnlyKnownResources() {
         assertTrue(StremioAddonClient.isSupportedResource("catalog"))
         assertTrue(StremioAddonClient.isSupportedResource("stream"))
