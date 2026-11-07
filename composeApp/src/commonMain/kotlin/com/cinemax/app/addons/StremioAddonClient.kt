@@ -52,12 +52,12 @@ object StremioAddonClient {
             append(type.encodeURLPathPart())
             append("/")
             append(id.encodeURLPathPart())
-            extra.toSortedMap().forEach { (key, value) ->
+            extra.entries.sortedBy { it.key }.forEach { (key, value) ->
                 require(key.isNotBlank()) { "Extra argument key cannot be blank" }
                 append("/")
                 append(key.encodeURLPathPart())
                 append("=")
-                append(value.encodeURLPathPart())
+                append(value.encodeURLPathPart().replace("&", "%26").replace("=", "%3D"))
             }
             append(".json")
         }
