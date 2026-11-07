@@ -1,6 +1,7 @@
 package com.cinemax.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,6 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cinemax.app.addons.InstalledAddon
 import com.cinemax.app.addons.AddonRepository
+import com.cinemax.app.addons.StremioMetaPreview
+import com.cinemax.app.addons.StremioStream
 import com.cinemax.app.addons.createCinemaxHttpClient
 import kotlinx.coroutines.launch
 
@@ -28,11 +31,15 @@ fun App() {
     val repository = remember { AddonRepository(http) }
     val scope = rememberCoroutineScope()
     val addons = remember { mutableStateListOf<InstalledAddon>() }
-    val catalogItems = remember { mutableStateListOf<com.cinemax.app.addons.StremioMetaPreview>() }
+    val catalogItems = remember { mutableStateListOf<StremioMetaPreview>() }
+    val streams = remember { mutableStateListOf<StremioStream>() }
+    var activeAddon by remember { mutableStateOf<InstalledAddon?>(null) }
+    var selectedItem by remember { mutableStateOf<StremioMetaPreview?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     var addonUrl by remember { mutableStateOf("") }
     var status by remember { mutableStateOf("أضف إضافة Stremio متوافقة للبدء") }
     var loading by remember { mutableStateOf(false) }
+    var loadingStreams by remember { mutableStateOf(false) }
 
     MaterialTheme(colorScheme = darkColorScheme(
         background = Ink, surface = Panel, primary = Accent,
@@ -80,7 +87,26 @@ fun App() {
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(catalogItems) { item ->
-                        Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                selectedItem = item
+                                streams.clear()
+                                val addon = activeAddon
+                                if (addon != null) {
+                                    loadingStreams = true
+                                    scope.launch {
+                                        try {
+                                            streams.addAll(repository.loadStreams(addon.manifestUrl, item.type, item.id))
+                                        } catch (error: Throwable) {
+                                            status = "تعذر جلب المصادر: ${error.message ?: "خطأ غير معروف"}"
+                                        } finally {
+                                            loadingStreams = false
+                                        }
+                                    }
+                                }
+                            },
+                            colors = CardDefaults.cardColors(containerColor = Panel)
+                        ) {
                             Column(Modifier.fillMaxWidth().padding(14.dp)) {
                                 Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold)
                                 item.releaseInfo?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
@@ -88,6 +114,8 @@ fun App() {
                                     Spacer(Modifier.height(4.dp))
                                     Text(it, color = Color.LightGray, fontSize = 12.sp, maxLines = 3)
                                 }
+                                Spacer(Modifier.height(6.dp))
+                                Text("اضغط لعرض المصادر", color = Accent, fontSize = 12.sp)
                             }
                         }
                     }
@@ -103,12 +131,8 @@ fun App() {
                     Column {
                         Text("الصق رابط الإضافة أو رابط manifest.json", fontSize = 13.sp)
                         Spacer(Modifier.height(10.dp))
-                        OutlinedTextField(
-                            value = addonUrl,
-                            onValueChange = { addonUrl = it },
-                            singleLine = true,
-                            placeholder = { Text("https://example.com/manifest.json") }
-                        )
+                        OutlinedTextField(value = addonUrl, onValueChange = { addonUrl = it },
+                            singleLine = true, placeholder = { Text("https://example.com/manifest.json") })
                     }
                 },
                 confirmButton = {
@@ -122,20 +146,17 @@ fun App() {
                                 val manifest = repository.loadManifest(input)
                                 val normalized = com.cinemax.app.addons.StremioAddonClient.manifestUrl(input)!!
                                 val installed = InstalledAddon(
-                                    manifestUrl = normalized,
-                                    id = manifest.id,
-                                    name = manifest.name,
-                                    version = manifest.version,
-                                    description = manifest.description,
+                                    manifestUrl = normalized, id = manifest.id, name = manifest.name,
+                                    version = manifest.version, description = manifest.description,
                                     installedAtEpochMillis = 0L
                                 )
                                 addons.removeAll { it.id == installed.id }
                                 addons.add(installed)
-                                status = "تمت إضافة ${manifest.name} بنجاح"
+                                activeAddon = installed
+                                catalogItems.clear()
                                 val catalog = manifest.catalogs.firstOrNull()
                                 if (catalog != null) {
                                     val loaded = repository.loadCatalog(normalized, catalog.type, catalog.id)
-                                    catalogItems.clear()
                                     catalogItems.addAll(loaded)
                                     status = "تم تثبيت ${manifest.name} وجلب ${loaded.size} عنصرًا"
                                 } else {
@@ -151,6 +172,32 @@ fun App() {
                     }) { Text("تحقق وأضف") }
                 },
                 dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text("إلغاء") } }
+            )
+        }
+
+        if (selectedItem != null) {
+            AlertDialog(
+                onDismissRequest = { selectedItem = null },
+                title = { Text(selectedItem?.name ?: "مصادر المشاهدة") },
+                text = {
+                    Column {
+                        if (loadingStreams) {
+                            LinearProgressIndicator(Modifier.fillMaxWidth())
+                            Text("جارٍ جلب المصادر...", modifier = Modifier.padding(top = 8.dp))
+                        } else if (streams.isEmpty()) {
+                            Text("لم تُرجع الإضافة مصادر لهذا العنصر.")
+                        } else {
+                            Text("المصادر التي أعادتها الإضافة:", fontSize = 13.sp)
+                            streams.forEachIndexed { index, stream ->
+                                Spacer(Modifier.height(8.dp))
+                                Text("${index + 1}. ${stream.name ?: stream.title ?: "مصدر"}", fontWeight = FontWeight.SemiBold)
+                                stream.title?.let { Text(it, fontSize = 12.sp, color = Color.Gray) }
+                                stream.url?.let { Text(it, fontSize = 10.sp, color = Color.Gray, maxLines = 2) }
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { selectedItem = null }) { Text("إغلاق") } }
             )
         }
     }
