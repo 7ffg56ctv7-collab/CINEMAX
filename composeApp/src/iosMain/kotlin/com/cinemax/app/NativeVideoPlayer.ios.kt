@@ -6,6 +6,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitViewController
 import platform.AVFoundation.AVPlayer
+import platform.AVFoundation.pause
+import platform.AVFoundation.play
 import platform.AVKit.AVPlayerViewController
 import platform.Foundation.NSURL
 
