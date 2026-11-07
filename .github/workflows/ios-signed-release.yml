@@ -47,11 +47,11 @@ jobs:
             -framework composeApp/build/bin/iosSimulatorArm64/releaseFramework/CinemaxKit.framework \
             -output composeApp/build/CinemaxKit.xcframework
 
-      - name: Generate Xcode project
-        working-directory: iosApp
+      - name: Generate app icon and Xcode project
         run: |
-          brew install xcodegen
-          xcodegen generate
+          brew install xcodegen librsvg
+          rsvg-convert -w 1024 -h 1024 iosApp/Resources/cinemax-icon.svg > iosApp/Sources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+          cd iosApp && xcodegen generate
 
       - name: Install Apple signing assets
         env:
@@ -79,8 +79,8 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN_PATH"
           security default-keychain -d user -s "$KEYCHAIN_PATH"
 
-          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' \
-            /dev/stdin <<< "$(security cms -D -i "$PROFILE_PATH")")
+          security cms -D -i "$PROFILE_PATH" > "$RUNNER_TEMP/profile.plist"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$RUNNER_TEMP/profile.plist")
           mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
           cp "$PROFILE_PATH" \
             "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
@@ -108,6 +108,7 @@ jobs:
           TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
         run: |
           set -euo pipefail
+          mkdir -p build/ipa
           cat > build/ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
