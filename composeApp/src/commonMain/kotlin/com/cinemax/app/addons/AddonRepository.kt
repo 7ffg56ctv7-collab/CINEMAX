@@ -36,10 +36,16 @@ class AddonRepository(
         manifestUrl: String,
         type: String,
         catalogId: String,
-        query: String
+        query: String,
+        skip: Int = 0
     ): List<StremioMetaPreview> {
         require(query.isNotBlank()) { "Search query cannot be blank" }
-        return loadCatalog(manifestUrl, type, catalogId, mapOf("search" to query.trim()))
+        require(skip >= 0) { "Skip cannot be negative" }
+        return loadCatalog(
+            manifestUrl, type, catalogId,
+            mapOf("search" to query.trim(), "skip" to skip.toString())
+                .filterValues { it != "0" }
+        )
     }
 
     suspend fun loadMeta(manifestUrl: String, type: String, mediaId: String): StremioMeta? {
