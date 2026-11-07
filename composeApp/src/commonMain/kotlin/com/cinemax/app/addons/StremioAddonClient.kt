@@ -24,10 +24,37 @@ object StremioAddonClient {
         return if (value.endsWith("/manifest.json")) value else "$value/manifest.json"
     }
 
-    fun resourceUrl(baseManifestUrl: String, resource: String, type: String, id: String): String {
+    /**
+     * Builds a Stremio resource URL. Extra arguments are path segments in the
+     * protocol's key=value form and are encoded independently to prevent path injection.
+     */
+    fun resourceUrl(
+        baseManifestUrl: String,
+        resource: String,
+        type: String,
+        id: String,
+        extra: Map<String, String> = emptyMap()
+    ): String {
         require(isSupportedResource(resource)) { "Unsupported Stremio resource" }
         val base = baseManifestUrl.removeSuffix("/manifest.json").removeSuffix("/")
-        return "$base/${resource.encodeURLPathPart()}/${type.encodeURLPathPart()}/${id.encodeURLPathPart()}.json"
+        val path = buildString {
+            append(base)
+            append("/")
+            append(resource.encodeURLPathPart())
+            append("/")
+            append(type.encodeURLPathPart())
+            append("/")
+            append(id.encodeURLPathPart())
+            extra.toSortedMap().forEach { (key, value) ->
+                require(key.isNotBlank()) { "Extra argument key cannot be blank" }
+                append("/")
+                append(key.encodeURLPathPart())
+                append("=")
+                append(value.encodeURLPathPart())
+            }
+            append(".json")
+        }
+        return path
     }
 
     fun isSupportedResource(resource: String): Boolean =
