@@ -24,5 +24,16 @@ The Android CI workflow runs:
 `gradle :composeApp:assembleDebug`
 and uploads the debug APK as a workflow artifact.
 
+## Optional signed iOS release
+
+A manual workflow named **iOS signed release** is available under GitHub Actions. It archives the iPhone app and exports an App Store Connect IPA when the repository has these GitHub Actions secrets configured:
+
+- `IOS_DISTRIBUTION_CERTIFICATE_BASE64`: base64-encoded Apple Distribution `.p12` certificate.
+- `IOS_DISTRIBUTION_CERTIFICATE_PASSWORD`: password for that `.p12` file.
+- `IOS_APP_STORE_PROFILE_BASE64`: base64-encoded App Store provisioning profile for `com.cinemax.app`.
+- `IOS_TEAM_ID`: Apple Developer Team ID.
+
+The certificate and provisioning profile must belong to the same Apple Developer team and match the app's bundle identifier. Add secrets in the repository's **Settings → Secrets and variables → Actions**, then run **Actions → iOS signed release → Run workflow**. Never commit signing certificates, provisioning profiles, passwords, or private keys to the repository. Without these owner-provided Apple signing assets, the workflow intentionally stops before signing.
+
 ## Compatibility and safety
 Stremio addons are remote HTTP services; their responses are parsed as data and never evaluated as code. Compatibility is provider-specific and must be tested. Nuvio plugins are a different executable JavaScript format; do not execute them without a hardened sandbox, explicit consent, and strict limits. Use only content sources you are authorized to access. CINEMAX does not host media.
