@@ -101,6 +101,41 @@ fun App() {
         }
     }
 
+    fun selectAddon(addon: InstalledAddon) {
+        if (activeAddon?.id == addon.id) return
+        activeAddon = addon
+        catalogItems.clear()
+        selectedItem = null
+        searchQuery = ""
+        loading = true
+        scope.launch {
+            try {
+                val manifest = repository.loadManifest(addon.manifestUrl)
+                val catalog = manifest.catalogs.firstOrNull()
+                if (catalog == null) {
+                    activeCatalogType = null
+                    activeCatalogId = null
+                    activeCatalogSupportsSearch = false
+                    activeCatalogSupportsSkip = false
+                    status = "تم اختيار ${addon.name}؛ لا يوجد كتالوج معلن."
+                } else {
+                    activeCatalogType = catalog.type
+                    activeCatalogId = catalog.id
+                    activeCatalogSupportsSearch = catalog.extra.any { it.name == "search" }
+                    activeCatalogSupportsSkip = catalog.extra.any { it.name == "skip" }
+                    val loaded = repository.loadCatalog(addon.manifestUrl, catalog.type, catalog.id)
+                    catalogItems.addAll(loaded)
+                    status = "المصدر النشط: ${addon.name} • ${loaded.size} عنصرًا"
+                }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                status = "تعذر فتح ${addon.name}: ${error.message ?: "خطأ غير معروف"}"
+            } finally {
+                loading = false
+            }
+        }
+    }
+
     MaterialTheme(colorScheme = darkColorScheme(
         background = Ink, surface = Panel, primary = Accent,
         onBackground = Color.White, onSurface = Color.White
@@ -135,7 +170,29 @@ fun App() {
                     }
                     addons.forEach { addon ->
                         Spacer(Modifier.height(8.dp))
-                        Text("✓ ${addon.name}  •  ${addon.version}", color = Color(0xFFB8A2FF))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            FilterChip(
+                                selected = activeAddon?.id == addon.id,
+                                onClick = { selectAddon(addon) },
+                                label = { Text("${addon.name} • ${addon.version}") }
+                            )
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick = {
+                                addons.remove(addon)
+                                addonStore.save(addons.toList())
+                                if (activeAddon?.id == addon.id) {
+                                    activeAddon = null
+                                    catalogItems.clear()
+                                    selectedItem = null
+                                    activeCatalogType = null
+                                    activeCatalogId = null
+                                    activeCatalogSupportsSearch = false
+                                    activeCatalogSupportsSkip = false
+                                    addons.lastOrNull()?.let { selectAddon(it) }
+                                }
+                                status = "تم تحديث قائمة الإضافات"
+                            }) { Text("إزالة") }
+                        }
                     }
                 }
             }
