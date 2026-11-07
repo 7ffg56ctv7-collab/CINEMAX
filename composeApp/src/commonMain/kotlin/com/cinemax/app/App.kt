@@ -3,6 +3,7 @@ package com.cinemax.app
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -386,10 +387,10 @@ fun App() {
                 onDismissRequest = { showSettings = false },
                 title = { Column { Text("إعدادات CINEMAX", fontWeight = FontWeight.Bold); Text("خصص تجربة المشاهدة كما تحب", fontSize = 12.sp, color = Color.Gray) } },
                 text = {
-                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("المظهر", color = appAccent, fontWeight = FontWeight.Bold)
                         Text("لون التطبيق", fontSize = 13.sp)
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             listOf("Violet", "Blue", "Rose", "Emerald", "Amber").forEach { tone ->
                                 FilterChip(selected = preferences.accent == tone, onClick = { preferences = preferences.copy(accent = tone); preferencesStore.save(preferences) },
                                     label = { Text(when(tone) { "Violet" -> "بنفسجي"; "Blue" -> "أزرق"; "Rose" -> "وردي"; "Emerald" -> "أخضر"; else -> "ذهبي" }) })
