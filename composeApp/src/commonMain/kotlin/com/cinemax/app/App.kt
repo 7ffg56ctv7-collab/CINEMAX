@@ -41,6 +41,8 @@ fun App() {
     var activeCatalogType by remember { mutableStateOf<String?>(null) }
     var activeCatalogId by remember { mutableStateOf<String?>(null) }
     var activeCatalogSupportsSearch by remember { mutableStateOf(false) }
+    var activeCatalogSupportsSkip by remember { mutableStateOf(false) }
+    var loadingMore by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -60,6 +62,7 @@ fun App() {
                     activeCatalogType = catalog.type
                     activeCatalogId = catalog.id
                     activeCatalogSupportsSearch = catalog.extra.any { it.name == "search" }
+                    activeCatalogSupportsSkip = catalog.extra.any { it.name == "skip" }
                     catalogItems.addAll(repository.loadCatalog(restoredAddon.manifestUrl, catalog.type, catalog.id))
                     status = "تم استعادة ${restoredAddon.name} • ${catalogItems.size} عنصرًا"
                 } else {
@@ -195,6 +198,44 @@ fun App() {
                             }
                         }
                     }
+                    if (activeCatalogSupportsSkip) {
+                        item {
+                            Button(
+                                enabled = !loadingMore && !loading && catalogItems.isNotEmpty(),
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = {
+                                    val addon = activeAddon ?: return@Button
+                                    val type = activeCatalogType ?: return@Button
+                                    val catalogId = activeCatalogId ?: return@Button
+                                    loadingMore = true
+                                    scope.launch {
+                                        try {
+                                            val nextPage = if (searchQuery.isNotBlank() && activeCatalogSupportsSearch) {
+                                                repository.searchCatalog(
+                                                    addon.manifestUrl, type, catalogId,
+                                                    searchQuery, skip = catalogItems.size
+                                                )
+                                            } else {
+                                                repository.loadCatalog(
+                                                    addon.manifestUrl, type, catalogId,
+                                                    extra = mapOf("skip" to catalogItems.size.toString())
+                                                )
+                                            }
+                                            catalogItems.addAll(nextPage)
+                                            status = "تم تحميل ${nextPage.size} عنصر إضافي"
+                                        } catch (error: Throwable) {
+                                            status = "تعذر تحميل المزيد: ${error.message ?: "خطأ غير معروف"}"
+                                        } finally {
+                                            loadingMore = false
+                                        }
+                                    }
+                                }
+                            ) {
+                                if (loadingMore) CircularProgressIndicator()
+                                else Text("تحميل المزيد")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -236,6 +277,7 @@ fun App() {
                                     activeCatalogType = catalog.type
                                     activeCatalogId = catalog.id
                                     activeCatalogSupportsSearch = catalog.extra.any { it.name == "search" }
+                                    activeCatalogSupportsSkip = catalog.extra.any { it.name == "skip" }
                                     val loaded = repository.loadCatalog(normalized, catalog.type, catalog.id)
                                     catalogItems.addAll(loaded)
                                     status = "تم تثبيت ${manifest.name} وجلب ${loaded.size} عنصرًا"
@@ -243,6 +285,7 @@ fun App() {
                                     activeCatalogType = null
                                     activeCatalogId = null
                                     activeCatalogSupportsSearch = false
+                                    activeCatalogSupportsSkip = false
                                     status = "تم تثبيت ${manifest.name}، ولا تعلن الإضافة عن كتالوج."
                                 }
                                 addonUrl = ""
