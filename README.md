@@ -12,10 +12,11 @@ CINEMAX is an early-stage, Arabic-first, cross-platform media client project bui
 - Shared protocol tests and an Android GitHub Actions build workflow.
 
 ## Not complete yet
-This repository is not yet a release-ready streaming application. Persistent addon storage, robust catalog pagination/extra parameters, search aggregation, detailed metadata screens, subtitles, playback UI and native player integration, Nuvio repository discovery/JS sandbox, account sync, accessibility/localization polish, iOS project packaging, signing, and end-to-end device testing remain to be implemented.
+This repository is not yet a release-ready streaming application. A native SwiftUI iOS app shell and XcodeGen project definition now live in `iosApp/`, with a macOS GitHub Actions workflow that builds an unsigned iOS Simulator app artifact. Persistent addon storage, robust catalog pagination/extra parameters, search aggregation, detailed metadata screens, subtitles, playback UI and native player integration, Nuvio repository discovery/JS sandbox, account sync, accessibility/localization polish, Apple signing, and end-to-end physical-device testing remain to be implemented.
 
 ## Build
-Requirements: JDK 17+, Android SDK, and macOS/Xcode for iOS.
+Requirements: JDK 17+, Android SDK, and macOS/Xcode for iOS. See `iosApp/README.md` for the native iOS build commands. The iOS CI workflow builds the shared simulator framework, generates the Xcode project with XcodeGen, and packages an unsigned Simulator `.app` zip. This is not a signed iPhone installation package.
+
 The Android CI workflow runs:
 `gradle :composeApp:assembleDebug`
 
