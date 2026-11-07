@@ -64,6 +64,19 @@ object StremioAddonClient {
         return path + query
     }
 
+    fun isSafeMediaUrl(input: String): Boolean {
+        val parsed = try {
+            Url(input.trim())
+        } catch (_: Throwable) {
+            return false
+        }
+        val secure = parsed.protocol.name == "https"
+        val localDevelopment = parsed.protocol.name == "http" &&
+            parsed.host in setOf("127.0.0.1", "localhost", "::1")
+        return (secure || localDevelopment) &&
+            parsed.user.isEmpty() && parsed.password.isEmpty()
+    }
+
     fun isSupportedResource(resource: String): Boolean =
         resource in setOf("catalog", "meta", "stream", "subtitles")
 }
