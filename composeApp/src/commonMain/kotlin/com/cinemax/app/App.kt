@@ -40,6 +40,7 @@ fun App() {
     var selectedMeta by remember { mutableStateOf<com.cinemax.app.addons.StremioMeta?>(null) }
     var activeCatalogType by remember { mutableStateOf<String?>(null) }
     var activeCatalogId by remember { mutableStateOf<String?>(null) }
+    var activeCatalogSupportsSearch by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -58,6 +59,7 @@ fun App() {
                 if (catalog != null) {
                     activeCatalogType = catalog.type
                     activeCatalogId = catalog.id
+                    activeCatalogSupportsSearch = catalog.extra.any { it.name == "search" }
                     catalogItems.addAll(repository.loadCatalog(restoredAddon.manifestUrl, catalog.type, catalog.id))
                     status = "تم استعادة ${restoredAddon.name} • ${catalogItems.size} عنصرًا"
                 } else {
@@ -112,7 +114,7 @@ fun App() {
             Spacer(Modifier.height(18.dp))
             Text("اكتشف", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
-            if (activeAddon != null && activeCatalogType != null && activeCatalogId != null) {
+            if (activeAddon != null && activeCatalogType != null && activeCatalogId != null && activeCatalogSupportsSearch) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -233,12 +235,14 @@ fun App() {
                                 if (catalog != null) {
                                     activeCatalogType = catalog.type
                                     activeCatalogId = catalog.id
+                                    activeCatalogSupportsSearch = catalog.extra.any { it.name == "search" }
                                     val loaded = repository.loadCatalog(normalized, catalog.type, catalog.id)
                                     catalogItems.addAll(loaded)
                                     status = "تم تثبيت ${manifest.name} وجلب ${loaded.size} عنصرًا"
                                 } else {
                                     activeCatalogType = null
                                     activeCatalogId = null
+                                    activeCatalogSupportsSearch = false
                                     status = "تم تثبيت ${manifest.name}، ولا تعلن الإضافة عن كتالوج."
                                 }
                                 addonUrl = ""
