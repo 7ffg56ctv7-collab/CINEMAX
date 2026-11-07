@@ -3,6 +3,9 @@
 CINEMAX is an early-stage, Arabic-first, cross-platform media client project built with Kotlin Multiplatform and Compose Multiplatform.
 
 ## Implemented in the current repository
+- Shared Arabic-first Compose interface with responsive media cards, remote poster artwork, and a persistent appearance/playback settings sheet.
+- CINEMAX visual identity with custom Android launcher vector and an iOS AppIcon generated from the shared SVG brand mark.
+- Persistent user preferences for accent color, OLED black background, compact cards, resume preference, autoplay preference, and preferred subtitle/audio languages.
 - Shared Compose UI shell with Arabic labels.
 - Android Activity/manifest and iOS Compose view-controller entry point.
 - Stremio manifest, catalog, metadata and stream models.
@@ -14,7 +17,7 @@ CINEMAX is an early-stage, Arabic-first, cross-platform media client project bui
 - Shared protocol tests and an Android GitHub Actions build workflow.
 
 ## Not complete yet
-This repository is not yet a release-ready streaming application. A native SwiftUI iOS app shell and XcodeGen project definition now live in `iosApp/`, with a macOS GitHub Actions workflow that builds unsigned iOS Simulator and iPhone app artifacts. Cross-addon search aggregation, external subtitle selection, richer playback controls, Nuvio repository discovery/JS sandbox, account sync, accessibility/localization polish, Apple signing, and end-to-end physical-device testing remain to be implemented.
+This repository is not yet a release-ready streaming application. A native SwiftUI iOS app shell and XcodeGen project definition now live in `iosApp/`, with a macOS GitHub Actions workflow that builds unsigned iOS Simulator and iPhone app artifacts. Cross-addon search aggregation, functional playback-position persistence, automatic next-episode sequencing, external subtitle selection, audio/subtitle track application, richer playback controls, Nuvio repository discovery/JS sandbox, account sync, profiles, intro/recap/outro skip services, accessibility/localization polish, Apple signing, and end-to-end physical-device testing remain to be implemented. Some preferences are currently saved for when their corresponding playback capabilities are completed; they are not presented as already active features.
 
 ## Build
 Requirements: JDK 17+, Android SDK, and macOS/Xcode for iOS. See `iosApp/README.md` for the native iOS build commands. The iOS CI workflow builds device and simulator frameworks, combines them into an XCFramework, generates the Xcode project with XcodeGen, and packages unsigned Simulator and iPhone `.app` outputs. The iPhone output is not signed and is not directly installable or distributable.
