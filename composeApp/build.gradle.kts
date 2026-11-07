@@ -22,7 +22,9 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
         }
-        androidMain.dependencies { }
+        androidMain.dependencies {
+            implementation("androidx.activity:activity-compose:1.10.1")
+        }
         iosMain.dependencies { }
     }
 }
