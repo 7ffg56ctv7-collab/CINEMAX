@@ -21,7 +21,15 @@ data class StremioManifest(
 data class StremioCatalog(
     val type: String,
     val id: String,
-    val name: String? = null
+    val name: String? = null,
+    val extra: List<StremioExtra> = emptyList()
+)
+
+@Serializable
+data class StremioExtra(
+    val name: String,
+    val isRequired: Boolean = false,
+    val options: List<String> = emptyList()
 )
 
 @Serializable
@@ -39,6 +47,28 @@ data class StremioMetaPreview(
 @Serializable
 data class StremioCatalogResponse(
     val metas: List<StremioMetaPreview> = emptyList()
+)
+
+@Serializable
+data class StremioMeta(
+    val id: String,
+    val type: String,
+    val name: String,
+    val poster: String? = null,
+    val background: String? = null,
+    val description: String? = null,
+    val releaseInfo: String? = null,
+    val imdbRating: String? = null,
+    val runtime: String? = null,
+    val genres: List<String> = emptyList(),
+    val director: List<String> = emptyList(),
+    val cast: List<String> = emptyList(),
+    val videos: List<JsonObject> = emptyList()
+)
+
+@Serializable
+data class StremioMetaResponse(
+    val meta: StremioMeta? = null
 )
 
 @Serializable
