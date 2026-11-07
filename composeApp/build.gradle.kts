@@ -29,6 +29,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation("com.russhwolf:multiplatform-settings-test:1.3.0")
         }
         iosMain.dependencies {
             implementation("io.ktor:ktor-client-darwin:3.3.0")
