@@ -157,12 +157,6 @@ fun App() {
             Text("ليلتك تبدأ هنا", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
             Text("مكتبتك السينمائية من مصادرك المفضلة", color = Color.LightGray)
             Spacer(Modifier.height(20.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = true, onClick = {}, label = { Text("الكل") })
-                FilterChip(selected = false, onClick = {}, label = { Text("أفلام") })
-                FilterChip(selected = false, onClick = {}, label = { Text("مسلسلات") })
-            }
-            Spacer(Modifier.height(18.dp))
             Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -284,7 +278,10 @@ fun App() {
             if (catalogItems.isEmpty()) {
                 Text("ستظهر عناصر الكتالوج هنا بعد تثبيت إضافة توفر كتالوجًا.", color = Color.LightGray, fontSize = 13.sp)
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     items(catalogItems) { item ->
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable {
