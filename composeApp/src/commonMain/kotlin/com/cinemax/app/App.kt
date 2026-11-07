@@ -13,6 +13,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -313,15 +315,26 @@ fun App() {
                             },
                             colors = CardDefaults.cardColors(containerColor = Panel)
                         ) {
-                            Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                                Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                item.releaseInfo?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
-                                item.description?.takeIf { it.isNotBlank() }?.let {
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(it, color = Color.LightGray, fontSize = 12.sp, maxLines = 3)
+                            Row(Modifier.fillMaxWidth().padding(if (preferences.compactCards) 8.dp else 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                AsyncImage(
+                                    model = item.poster,
+                                    contentDescription = "ملصق ${item.name}",
+                                    modifier = Modifier.width(if (preferences.compactCards) 64.dp else 88.dp)
+                                        .height(if (preferences.compactCards) 94.dp else 128.dp)
+                                        .background(Color(0xFF25283A), RoundedCornerShape(10.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Column(Modifier.weight(1f).align(Alignment.CenterVertically)) {
+                                    Text(item.name, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                    item.releaseInfo?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
+                                    item.imdbRating?.let { Text("★ $it", color = Color(0xFFFFC857), fontSize = 12.sp) }
+                                    item.description?.takeIf { it.isNotBlank() }?.let {
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(it, color = Color.LightGray, fontSize = 12.sp, maxLines = 3)
+                                    }
+                                    Spacer(Modifier.height(6.dp))
+                                    Text("اضغط لعرض التفاصيل والمصادر", color = appAccent, fontSize = 12.sp)
                                 }
-                                Spacer(Modifier.height(6.dp))
-                                Text("اضغط لعرض المصادر", color = Accent, fontSize = 12.sp)
                             }
                         }
                     }
