@@ -3,6 +3,7 @@ package com.cinemax.app.addons
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class StremioManifest(
@@ -17,7 +18,11 @@ data class StremioManifest(
 )
 
 @Serializable
-data class StremioCatalog(val type: String, val id: String, val name: String? = null)
+data class StremioCatalog(
+    val type: String,
+    val id: String,
+    val name: String? = null
+)
 
 @Serializable
 data class StremioMetaPreview(
@@ -32,7 +37,9 @@ data class StremioMetaPreview(
 )
 
 @Serializable
-data class StremioCatalogResponse(val metas: List<StremioMetaPreview> = emptyList())
+data class StremioCatalogResponse(
+    val metas: List<StremioMetaPreview> = emptyList()
+)
 
 @Serializable
 data class StremioStream(
@@ -41,8 +48,10 @@ data class StremioStream(
     val url: String? = null,
     val infoHash: String? = null,
     val fileIdx: Int? = null,
-    val behaviorHints: Map<String, String> = emptyMap()
+    val behaviorHints: JsonObject = JsonObject(emptyMap())
 )
 
 @Serializable
-data class StremioStreamResponse(val streams: List<StremioStream> = emptyList())
+data class StremioStreamResponse(
+    val streams: List<StremioStream> = emptyList()
+)
