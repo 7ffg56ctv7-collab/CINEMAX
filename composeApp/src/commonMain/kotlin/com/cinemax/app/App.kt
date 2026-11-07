@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.cinemax.app.addons.AddonSettingsStore
 import com.cinemax.app.addons.InstalledAddon
 import com.cinemax.app.addons.AddonRepository
