@@ -51,6 +51,28 @@ fun App() {
     var loading by remember { mutableStateOf(false) }
     var loadingStreams by remember { mutableStateOf(false) }
 
+    LaunchedEffect(selectedItem?.id, activeAddon?.id) {
+        val item = selectedItem
+        val addon = activeAddon
+        if (item != null && addon != null) {
+            loadingStreams = true
+            streams.clear()
+            selectedMeta = null
+            try {
+                selectedMeta = repository.loadMeta(addon.manifestUrl, item.type, item.id)
+                streams.addAll(repository.loadStreams(addon.manifestUrl, item.type, item.id))
+            } catch (error: Throwable) {
+                status = "تعذر جلب تفاصيل العنصر أو مصادره: ${error.message ?: "خطأ غير معروف"}"
+            } finally {
+                loadingStreams = false
+            }
+        } else {
+            streams.clear()
+            selectedMeta = null
+            loadingStreams = false
+        }
+    }
+
     LaunchedEffect(Unit) {
         val restoredAddon = activeAddon
         if (restoredAddon != null) {
@@ -167,22 +189,6 @@ fun App() {
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable {
                                 selectedItem = item
-                                selectedMeta = null
-                                streams.clear()
-                                val addon = activeAddon
-                                if (addon != null) {
-                                    loadingStreams = true
-                                    scope.launch {
-                                        try {
-                                            selectedMeta = repository.loadMeta(addon.manifestUrl, item.type, item.id)
-                                            streams.addAll(repository.loadStreams(addon.manifestUrl, item.type, item.id))
-                                        } catch (error: Throwable) {
-                                            status = "تعذر جلب المصادر: ${error.message ?: "خطأ غير معروف"}"
-                                        } finally {
-                                            loadingStreams = false
-                                        }
-                                    }
-                                }
                             },
                             colors = CardDefaults.cardColors(containerColor = Panel)
                         ) {
