@@ -53,6 +53,15 @@ class StremioAddonClientTest {
     }
 
     @Test
+    fun allowsOnlySecureMediaUrls() {
+        assertTrue(StremioAddonClient.isSafeMediaUrl("https://cdn.example/video.m3u8"))
+        assertTrue(StremioAddonClient.isSafeMediaUrl("http://127.0.0.1:8080/video.mp4"))
+        assertFalse(StremioAddonClient.isSafeMediaUrl("http://cdn.example/video.mp4"))
+        assertFalse(StremioAddonClient.isSafeMediaUrl("https://user:pass@cdn.example/video.mp4"))
+        assertFalse(StremioAddonClient.isSafeMediaUrl("javascript:alert(1)"))
+    }
+
+    @Test
     fun permitsOnlyKnownResources() {
         assertTrue(StremioAddonClient.isSupportedResource("catalog"))
         assertTrue(StremioAddonClient.isSupportedResource("stream"))
