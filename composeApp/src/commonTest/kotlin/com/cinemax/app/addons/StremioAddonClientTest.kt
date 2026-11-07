@@ -16,7 +16,15 @@ class StremioAddonClientTest {
     @Test
     fun rejectsInsecureRemoteUrls() {
         assertNull(StremioAddonClient.manifestUrl("http://addon.example"))
+        assertNull(StremioAddonClient.manifestUrl("http://127.0.0.1.evil.example"))
+        assertEquals("http://127.0.0.1:7000/manifest.json", StremioAddonClient.manifestUrl("http://127.0.0.1:7000"))
         assertNull(StremioAddonClient.manifestUrl("javascript:alert(1)"))
+    }
+
+    @Test
+    fun encodesDynamicResourcePathSegments() {
+        val url = StremioAddonClient.resourceUrl("https://addon.example/manifest.json", "stream", "movie", "tt/123")
+        assertEquals("https://addon.example/stream/movie/tt%2F123.json", url)
     }
 
     @Test
