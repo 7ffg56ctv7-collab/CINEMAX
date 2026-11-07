@@ -42,6 +42,27 @@ fun App() {
     var loading by remember { mutableStateOf(false) }
     var loadingStreams by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) {
+        val restoredAddon = activeAddon
+        if (restoredAddon != null) {
+            loading = true
+            try {
+                val manifest = repository.loadManifest(restoredAddon.manifestUrl)
+                val catalog = manifest.catalogs.firstOrNull()
+                if (catalog != null) {
+                    catalogItems.addAll(repository.loadCatalog(restoredAddon.manifestUrl, catalog.type, catalog.id))
+                    status = "تم استعادة ${restoredAddon.name} • ${catalogItems.size} عنصرًا"
+                } else {
+                    status = "تم استعادة ${restoredAddon.name}؛ لا يوجد كتالوج معلن."
+                }
+            } catch (error: Throwable) {
+                status = "تعذر استعادة الكتالوج: ${error.message ?: "خطأ غير معروف"}"
+            } finally {
+                loading = false
+            }
+        }
+    }
+
     MaterialTheme(colorScheme = darkColorScheme(
         background = Ink, surface = Panel, primary = Accent,
         onBackground = Color.White, onSurface = Color.White
