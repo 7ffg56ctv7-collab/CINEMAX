@@ -20,7 +20,7 @@ object StremioAddonClient {
         val localDevelopment = parsed.protocol.name == "http" &&
             parsed.host in setOf("127.0.0.1", "localhost", "::1")
         if (!secure && !localDevelopment) return null
-        if (parsed.user.isNotEmpty() || parsed.password.isNotEmpty()) return null
+        if (!parsed.user.isNullOrEmpty() || !parsed.password.isNullOrEmpty()) return null
         val queryIndex = value.indexOf('?').takeIf { it >= 0 } ?: value.length
         val path = value.substring(0, queryIndex)
         val query = value.substring(queryIndex)
@@ -74,7 +74,7 @@ object StremioAddonClient {
         val localDevelopment = parsed.protocol.name == "http" &&
             parsed.host in setOf("127.0.0.1", "localhost", "::1")
         return (secure || localDevelopment) &&
-            parsed.user.isEmpty() && parsed.password.isEmpty()
+            parsed.user.isNullOrEmpty() && parsed.password.isNullOrEmpty()
     }
 
     fun isSupportedResource(resource: String): Boolean =
