@@ -22,8 +22,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14'
-      - name: Install XcodeGen
-        run: brew install xcodegen
+      - name: Install icon tooling
+        run: |
+          brew install xcodegen librsvg
+          rsvg-convert -w 1024 -h 1024 iosApp/Resources/cinemax-icon.svg > iosApp/Sources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
       - name: Build iPhone device framework
         run: gradle :composeApp:linkDebugFrameworkIosArm64
       - name: Build iOS Simulator framework
