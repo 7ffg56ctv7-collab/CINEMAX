@@ -26,7 +26,10 @@ kotlin {
             implementation("io.ktor:ktor-client-okhttp:3.3.0")
             implementation("androidx.activity:activity-compose:1.10.1")
         }
-        commonTest.dependencies {\n            implementation(kotlin("test"))\n        }\n        iosMain.dependencies {
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
+        iosMain.dependencies {
             implementation("io.ktor:ktor-client-darwin:3.3.0")
         }
     }
