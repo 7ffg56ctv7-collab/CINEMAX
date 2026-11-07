@@ -35,6 +35,9 @@ fun App() {
     val http = remember { createCinemaxHttpClient() }
     val repository = remember { AddonRepository(http) }
     val addonStore = remember { AddonSettingsStore() }
+    val preferencesStore = remember { CinemaxPreferencesStore() }
+    var preferences by remember { mutableStateOf(preferencesStore.load()) }
+    var showSettings by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val addons = remember { mutableStateListOf<InstalledAddon>().apply { addAll(addonStore.load()) } }
     val catalogItems = remember { mutableStateListOf<StremioMetaPreview>() }
@@ -147,19 +150,31 @@ fun App() {
         }
     }
 
+    val appAccent = when (preferences.accent) {
+        "Blue" -> Color(0xFF22A7F0)
+        "Rose" -> Color(0xFFEC4899)
+        "Emerald" -> Color(0xFF10B981)
+        "Amber" -> Color(0xFFF59E0B)
+        else -> Accent
+    }
+    val appBackground = if (preferences.oledBlack) Color.Black else Ink
     MaterialTheme(colorScheme = darkColorScheme(
-        background = Ink, surface = Panel, primary = Accent,
+        background = appBackground, surface = Panel, primary = appAccent,
         onBackground = Color.White, onSurface = Color.White
     )) {
-        Column(Modifier.fillMaxSize().background(Ink).padding(20.dp)) {
+        Column(Modifier.fillMaxSize().background(appBackground).padding(horizontal = 18.dp, vertical = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("CINEMAX", fontSize = 25.sp, fontWeight = FontWeight.Black, color = Color.White)
                 Spacer(Modifier.weight(1f))
                 Text("AR  /  EN", color = Color.LightGray, fontSize = 12.sp)
+                Spacer(Modifier.width(10.dp))
+                IconButton(onClick = { showSettings = true }) { Text("⚙", color = appAccent, fontSize = 24.sp) }
             }
             Spacer(Modifier.height(26.dp))
             Text("ليلتك تبدأ هنا", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Bold)
             Text("مكتبتك السينمائية من مصادرك المفضلة", color = Color.LightGray)
+            Spacer(Modifier.height(10.dp))
+            Text("أفلام  •  مسلسلات  •  اكتشف", color = appAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(20.dp))
             Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(18.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp)) {
@@ -352,6 +367,51 @@ fun App() {
             }
         }
 
+
+        if (showSettings) {
+            AlertDialog(
+                onDismissRequest = { showSettings = false },
+                title = { Column { Text("إعدادات CINEMAX", fontWeight = FontWeight.Bold); Text("خصص تجربة المشاهدة كما تحب", fontSize = 12.sp, color = Color.Gray) } },
+                text = {
+                    Column(modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("المظهر", color = appAccent, fontWeight = FontWeight.Bold)
+                        Text("لون التطبيق", fontSize = 13.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            listOf("Violet", "Blue", "Rose", "Emerald", "Amber").forEach { tone ->
+                                FilterChip(selected = preferences.accent == tone, onClick = { preferences = preferences.copy(accent = tone); preferencesStore.save(preferences) },
+                                    label = { Text(when(tone) { "Violet" -> "بنفسجي"; "Blue" -> "أزرق"; "Rose" -> "وردي"; "Emerald" -> "أخضر"; else -> "ذهبي" }) })
+                            }
+                        }
+                        PreferenceSwitch("خلفية سوداء OLED", preferences.oledBlack) { preferences = preferences.copy(oledBlack = it); preferencesStore.save(preferences) }
+                        PreferenceSwitch("بطاقات أكثر اختصارًا", preferences.compactCards) { preferences = preferences.copy(compactCards = it); preferencesStore.save(preferences) }
+                        Divider()
+                        Text("التشغيل", color = appAccent, fontWeight = FontWeight.Bold)
+                        PreferenceSwitch("تذكر موضع التوقف", preferences.rememberPlaybackPosition) { preferences = preferences.copy(rememberPlaybackPosition = it); preferencesStore.save(preferences) }
+                        PreferenceSwitch("تشغيل الحلقة التالية تلقائيًا", preferences.autoplayNextEpisode) { preferences = preferences.copy(autoplayNextEpisode = it); preferencesStore.save(preferences) }
+                        Divider()
+                        Text("الترجمة والصوت", color = appAccent, fontWeight = FontWeight.Bold)
+                        Text("لغة الترجمة المفضلة", fontSize = 13.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FilterChip(selected = preferences.preferredSubtitleLanguage == "ar", onClick = { preferences = preferences.copy(preferredSubtitleLanguage = "ar"); preferencesStore.save(preferences) }, label = { Text("العربية") })
+                            FilterChip(selected = preferences.preferredSubtitleLanguage == "en", onClick = { preferences = preferences.copy(preferredSubtitleLanguage = "en"); preferencesStore.save(preferences) }, label = { Text("English") })
+                            FilterChip(selected = preferences.preferredSubtitleLanguage == "off", onClick = { preferences = preferences.copy(preferredSubtitleLanguage = "off"); preferencesStore.save(preferences) }, label = { Text("إيقاف") })
+                        }
+                        Text("لغة الصوت المفضلة", fontSize = 13.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FilterChip(selected = preferences.preferredAudioLanguage == "device", onClick = { preferences = preferences.copy(preferredAudioLanguage = "device"); preferencesStore.save(preferences) }, label = { Text("لغة الجهاز") })
+                            FilterChip(selected = preferences.preferredAudioLanguage == "ar", onClick = { preferences = preferences.copy(preferredAudioLanguage = "ar"); preferencesStore.save(preferences) }, label = { Text("العربية") })
+                            FilterChip(selected = preferences.preferredAudioLanguage == "en", onClick = { preferences = preferences.copy(preferredAudioLanguage = "en"); preferencesStore.save(preferences) }, label = { Text("English") })
+                        }
+                        Divider()
+                        Text("الإضافات", color = appAccent, fontWeight = FontWeight.Bold)
+                        Text("إدارة المصادر من بطاقة «مصادرك وإضافاتك» في الرئيسية. تشغيل شيفرات الإضافات غير مفعّل حفاظًا على الأمان.", fontSize = 12.sp, color = Color.Gray)
+                        Text("CINEMAX • إصدار تجريبي", fontSize = 11.sp, color = Color.Gray)
+                    }
+                },
+                confirmButton = { TextButton(onClick = { showSettings = false }) { Text("تم") } }
+            )
+        }
+
         if (showAddDialog) {
             AlertDialog(
                 onDismissRequest = { showAddDialog = false },
@@ -491,5 +551,13 @@ fun App() {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PreferenceSwitch(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, modifier = Modifier.weight(1f), fontSize = 13.sp)
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
