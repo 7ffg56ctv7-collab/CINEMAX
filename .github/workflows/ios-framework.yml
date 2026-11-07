@@ -24,6 +24,12 @@ jobs:
         run: gradle :composeApp:linkDebugFrameworkIosArm64
       - name: Build iOS Simulator framework
         run: gradle :composeApp:linkDebugFrameworkIosSimulatorArm64
+      - name: Assemble universal XCFramework
+        run: |
+          xcodebuild -create-xcframework \
+            -framework composeApp/build/bin/iosArm64/debugFramework/CinemaxKit.framework \
+            -framework composeApp/build/bin/iosSimulatorArm64/debugFramework/CinemaxKit.framework \
+            -output composeApp/build/CinemaxKit.xcframework
       - name: Generate native Xcode project
         working-directory: iosApp
         run: xcodegen generate
@@ -34,15 +40,29 @@ jobs:
             -scheme CINEMAX \
             -sdk iphonesimulator \
             -configuration Debug \
-            -derivedDataPath build/ios-derived \
+            -derivedDataPath build/ios-simulator-derived \
             CODE_SIGNING_ALLOWED=NO
-      - name: Package simulator app
+      - name: Build unsigned iPhone app
         run: |
-          APP_PATH=$(find build/ios-derived/Build/Products -maxdepth 2 -name 'CINEMAX.app' -type d | head -n 1)
-          test -n "$APP_PATH"
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" build/CINEMAX-iOS-Simulator.zip
+          xcodebuild \
+            -project iosApp/CINEMAX.xcodeproj \
+            -scheme CINEMAX \
+            -sdk iphoneos \
+            -configuration Debug \
+            -derivedDataPath build/ios-device-derived \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Package iOS build outputs
+        run: |
+          SIM_APP=$(find build/ios-simulator-derived/Build/Products -maxdepth 2 -name 'CINEMAX.app' -type d | head -n 1)
+          DEVICE_APP=$(find build/ios-device-derived/Build/Products -maxdepth 2 -name 'CINEMAX.app' -type d | head -n 1)
+          test -n "$SIM_APP"
+          test -n "$DEVICE_APP"
+          ditto -c -k --sequesterRsrc --keepParent "$SIM_APP" build/CINEMAX-iOS-Simulator.zip
+          ditto -c -k --sequesterRsrc --keepParent "$DEVICE_APP" build/CINEMAX-iOS-Device-Unsigned.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: CINEMAX-iOS-Simulator
-          path: build/CINEMAX-iOS-Simulator.zip
+          name: CINEMAX-iOS-Builds
+          path: |
+            build/CINEMAX-iOS-Simulator.zip
+            build/CINEMAX-iOS-Device-Unsigned.zip
           if-no-files-found: error
