@@ -21,6 +21,7 @@ kotlin {
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
+            implementation("com.russhwolf:multiplatform-settings:1.3.0")
         }
         androidMain.dependencies {
             implementation("io.ktor:ktor-client-okhttp:3.3.0")
