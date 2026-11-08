@@ -40,7 +40,8 @@ fun App() {
     val addonStore = remember { AddonSettingsStore() }
     val preferencesStore = remember { CinemaxPreferencesStore() }
     val favoritesStore = remember { FavoritesStore() }
-    val favoriteIds = remember { mutableStateOf(favoritesStore.load()) }
+    val favoriteItems = remember { mutableStateListOf<com.cinemax.app.addons.StremioMetaPreview>().apply { addAll(favoritesStore.load()) } }
+    val favoriteIds = favoriteItems.map { it.id }.toSet()
     var showFavoritesOnly by remember { mutableStateOf(false) }
     var preferences by remember { mutableStateOf(preferencesStore.load()) }
     var showSettings by remember { mutableStateOf(false) }
@@ -75,6 +76,19 @@ fun App() {
             selectedMeta = null
             try {
                 selectedMeta = repository.loadMeta(addon.manifestUrl, item.type, item.id)
+                selectedMeta?.let { meta ->
+                    val index = favoriteItems.indexOfFirst { it.id == item.id }
+                    if (index >= 0) {
+                        favoriteItems[index] = item.copy(
+                            name = meta.name, poster = meta.poster ?: item.poster,
+                            background = meta.background ?: item.background,
+                            description = meta.description ?: item.description,
+                            releaseInfo = meta.releaseInfo ?: item.releaseInfo,
+                            imdbRating = meta.imdbRating ?: item.imdbRating
+                        )
+                        favoritesStore.save(favoriteItems.toList())
+                    }
+                }
                 streams.addAll(repository.loadStreams(addon.manifestUrl, item.type, item.id))
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
@@ -311,7 +325,7 @@ fun App() {
                 }
                 Spacer(Modifier.height(8.dp))
             }
-            val visibleItems = if (showFavoritesOnly) catalogItems.filter { it.id in favoriteIds.value } else catalogItems
+            val visibleItems = if (showFavoritesOnly) favoriteItems.toList() else catalogItems.toList()
             if (visibleItems.isEmpty()) {
                 Text(if (showFavoritesOnly) "قائمتك فارغة حاليًا. افتح تفاصيل أي عنوان وأضفه إلى قائمتك." else "ستظهر عناصر الكتالوج هنا بعد تثبيت إضافة توفر كتالوجًا.", color = Color.LightGray, fontSize = 13.sp)
             } else {
@@ -525,13 +539,24 @@ fun App() {
                         (selectedMeta?.imdbRating ?: selected.imdbRating)?.let { Text("★ $it", color = Color(0xFFFFC857), fontSize = 12.sp) }
                         selectedMeta?.runtime?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
                     }
-                    val isFavorite = selected.id in favoriteIds.value
+                    val isFavorite = selected.id in favoriteIds
                     OutlinedButton(onClick = {
-                        val next = favoriteIds.value.toMutableSet().apply {
-                            if (isFavorite) remove(selected.id) else add(selected.id)
-                        }.toSet()
-                        favoriteIds.value = next
-                        favoritesStore.save(next)
+                        if (isFavorite) {
+                            favoriteItems.removeAll { it.id == selected.id }
+                        } else {
+                            val meta = selectedMeta
+                            val saved = selected.copy(
+                                name = meta?.name ?: selected.name,
+                                poster = meta?.poster ?: selected.poster,
+                                background = meta?.background ?: selected.background,
+                                description = meta?.description ?: selected.description,
+                                releaseInfo = meta?.releaseInfo ?: selected.releaseInfo,
+                                imdbRating = meta?.imdbRating ?: selected.imdbRating
+                            )
+                            favoriteItems.removeAll { it.id == selected.id }
+                            favoriteItems.add(saved)
+                        }
+                        favoritesStore.save(favoriteItems.toList())
                     }, modifier = Modifier.fillMaxWidth()) {
                         Text(if (isFavorite) "✓ تمت الإضافة إلى قائمتي — إزالة" else "＋ أضف إلى قائمتي")
                     }
