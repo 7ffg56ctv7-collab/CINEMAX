@@ -257,7 +257,16 @@ fun App() {
                         Card(modifier = Modifier.width(142.dp).clickable { selectedItem = progress.item }, colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp)) {
                             Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 AsyncImage(model = progress.item.poster, contentDescription = progress.item.name, modifier = Modifier.fillMaxWidth().height(82.dp).background(Color(0xFF25283A), RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
-                                Text(progress.item.name, color = Color.White, fontSize = 12.sp, maxLines = 1)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(progress.item.name, color = Color.White, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f))
+                                    TextButton(
+                                        onClick = {
+                                            watchProgressStore.remove(progress.item.id)
+                                            watchProgressItems.removeAll { it.item.id == progress.item.id }
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                    ) { Text("×", color = Color.LightGray, fontSize = 16.sp) }
+                                }
                                 LinearProgressIndicator(progress = { progress.progressFraction }, modifier = Modifier.fillMaxWidth())
                                 Text("متبقي " + ((progress.durationMillis - progress.positionMillis).coerceAtLeast(0L) / 60_000L) + " دقيقة تقريبًا", color = Color.LightGray, fontSize = 10.sp)
                             }
