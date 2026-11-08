@@ -2,6 +2,9 @@ package com.cinemax.app
 
 import com.russhwolf.settings.Settings
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /** Local watchlist persistence. IDs are stored independently of the current catalog page. */
