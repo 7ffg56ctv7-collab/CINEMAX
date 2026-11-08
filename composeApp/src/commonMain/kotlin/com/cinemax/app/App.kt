@@ -28,6 +28,7 @@ import com.cinemax.app.addons.StremioStream
 import com.cinemax.app.addons.createCinemaxHttpClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 
 private val Ink = Color(0xFF090B12)
 private val Panel = Color(0xFF171B28)
@@ -42,6 +43,8 @@ fun App() {
     val favoritesStore = remember { FavoritesStore() }
     val favoriteItems = remember { mutableStateListOf<com.cinemax.app.addons.StremioMetaPreview>().apply { addAll(favoritesStore.load()) } }
     val favoriteIds = favoriteItems.map { it.id }.toSet()
+    val watchProgressStore = remember { WatchProgressStore() }
+    val watchProgressItems = remember { mutableStateListOf<WatchProgress>().apply { addAll(watchProgressStore.load()) } }
     var showFavoritesOnly by remember { mutableStateOf(false) }
     var preferences by remember { mutableStateOf(preferencesStore.load()) }
     var showSettings by remember { mutableStateOf(false) }
@@ -66,6 +69,7 @@ fun App() {
     var loading by remember { mutableStateOf(false) }
     var loadingStreams by remember { mutableStateOf(false) }
     var playbackUrl by remember { mutableStateOf<String?>(null) }
+    var playingItem by remember { mutableStateOf<StremioMetaPreview?>(null) }
 
     LaunchedEffect(selectedItem?.id, activeAddon?.id) {
         val item = selectedItem
@@ -243,6 +247,23 @@ fun App() {
                 FilterChip(selected = !showFavoritesOnly, onClick = { showFavoritesOnly = false }, label = { Text("الكل") })
                 Spacer(Modifier.width(6.dp))
                 FilterChip(selected = showFavoritesOnly, onClick = { showFavoritesOnly = true }, label = { Text("قائمتي ★") })
+            }
+            if (watchProgressItems.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                Text("تابع المشاهدة", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    watchProgressItems.forEach { progress ->
+                        Card(modifier = Modifier.width(142.dp).clickable { selectedItem = progress.item }, colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp)) {
+                            Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                AsyncImage(model = progress.item.poster, contentDescription = progress.item.name, modifier = Modifier.fillMaxWidth().height(82.dp).background(Color(0xFF25283A), RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
+                                Text(progress.item.name, color = Color.White, fontSize = 12.sp, maxLines = 1)
+                                LinearProgressIndicator(progress = { progress.progressFraction }, modifier = Modifier.fillMaxWidth())
+                                Text("متبقي " + ((progress.durationMillis - progress.positionMillis).coerceAtLeast(0L) / 60_000L) + " دقيقة تقريبًا", color = Color.LightGray, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
             }
             if (availableCatalogs.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
@@ -587,8 +608,18 @@ fun App() {
                                     stream.title?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
                                     stream.url?.let { mediaUrl ->
                                         Button(onClick = {
-                                            if (com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl(mediaUrl)) playbackUrl = mediaUrl
-                                            else status = "تم رفض رابط تشغيل غير آمن. يجب أن يستخدم HTTPS."
+                                            if (com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl(mediaUrl)) {
+                                                val meta = selectedMeta
+                                                playingItem = selected.copy(
+                                                    name = meta?.name ?: selected.name,
+                                                    poster = meta?.poster ?: selected.poster,
+                                                    background = meta?.background ?: selected.background,
+                                                    description = meta?.description ?: selected.description,
+                                                    releaseInfo = meta?.releaseInfo ?: selected.releaseInfo,
+                                                    imdbRating = meta?.imdbRating ?: selected.imdbRating
+                                                )
+                                                playbackUrl = mediaUrl
+                                            } else status = "تم رفض رابط تشغيل غير آمن. يجب أن يستخدم HTTPS."
                                         }, modifier = Modifier.fillMaxWidth()) { Text("▶ تشغيل") }
                                     } ?: Text("هذا المصدر لا يحتوي على رابط مباشر قابل للتشغيل هنا.", color = Color.Gray, fontSize = 11.sp)
                                 }
@@ -600,7 +631,7 @@ fun App() {
             }
         }
         playbackUrl?.let { mediaUrl ->
-            Dialog(onDismissRequest = { playbackUrl = null }) {
+            Dialog(onDismissRequest = { playbackUrl = null; playingItem = null }) {
                 Column(
                     modifier = Modifier.fillMaxWidth()
                         .background(Color.Black, RoundedCornerShape(16.dp))
@@ -610,11 +641,28 @@ fun App() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("مشغل CINEMAX", color = Color.White, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { playbackUrl = null }) { Text("إغلاق") }
+                        TextButton(onClick = { playbackUrl = null; playingItem = null }) { Text("إغلاق") }
                     }
                     NativeVideoPlayer(
                         url = mediaUrl,
-                        modifier = Modifier.fillMaxWidth().height(260.dp)
+                        modifier = Modifier.fillMaxWidth().height(260.dp),
+                        initialPositionMillis = playingItem?.let { item ->
+                            watchProgressItems.firstOrNull { it.item.id == item.id }?.positionMillis ?: 0L
+                        } ?: 0L,
+                        onProgress = { positionMillis, durationMillis ->
+                            val item = playingItem
+                            if (item != null && preferences.rememberPlaybackPosition) {
+                                val progress = WatchProgress(
+                                    item = item,
+                                    positionMillis = positionMillis,
+                                    durationMillis = durationMillis,
+                                    updatedAtEpochMillis = Clock.System.now().toEpochMilliseconds()
+                                )
+                                watchProgressStore.save(progress)
+                                watchProgressItems.removeAll { it.item.id == item.id }
+                                if (positionMillis < durationMillis - 15_000L) watchProgressItems.add(0, progress)
+                            }
+                        }
                     )
                 }
             }
