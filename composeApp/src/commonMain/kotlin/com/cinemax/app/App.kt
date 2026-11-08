@@ -311,8 +311,9 @@ fun App() {
                 }
                 Spacer(Modifier.height(8.dp))
             }
-            if (catalogItems.isEmpty()) {
-                Text("ستظهر عناصر الكتالوج هنا بعد تثبيت إضافة توفر كتالوجًا.", color = Color.LightGray, fontSize = 13.sp)
+            val visibleItems = if (showFavoritesOnly) catalogItems.filter { it.id in favoriteIds.value } else catalogItems
+            if (visibleItems.isEmpty()) {
+                Text(if (showFavoritesOnly) "قائمتك فارغة حاليًا. افتح تفاصيل أي عنوان وأضفه إلى قائمتك." else "ستظهر عناصر الكتالوج هنا بعد تثبيت إضافة توفر كتالوجًا.", color = Color.LightGray, fontSize = 13.sp)
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
