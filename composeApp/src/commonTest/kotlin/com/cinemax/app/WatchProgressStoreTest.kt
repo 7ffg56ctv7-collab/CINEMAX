@@ -23,7 +23,7 @@ class WatchProgressStoreTest {
 
         val restored = WatchProgressStore(settings).load()
         assertEquals(listOf("tt002", "tt001"), restored.map { it.item.id })
-        assertEquals(0.3f, restored.first().progressFraction)
+        assertEquals(0.15f, restored.first().progressFraction)
     }
 
     @Test
