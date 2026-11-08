@@ -39,6 +39,9 @@ fun App() {
     val repository = remember { AddonRepository(http) }
     val addonStore = remember { AddonSettingsStore() }
     val preferencesStore = remember { CinemaxPreferencesStore() }
+    val favoritesStore = remember { FavoritesStore() }
+    val favoriteIds = remember { mutableStateOf(favoritesStore.load()) }
+    var showFavoritesOnly by remember { mutableStateOf(false) }
     var preferences by remember { mutableStateOf(preferencesStore.load()) }
     var showSettings by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -220,7 +223,7 @@ fun App() {
                 }
             }
             Spacer(Modifier.height(18.dp))
-            Text("اكتشف", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically) {\n                Text("اكتشف", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)\n                Spacer(Modifier.weight(1f))\n                FilterChip(selected = !showFavoritesOnly, onClick = { showFavoritesOnly = false }, label = { Text("الكل") })\n                Spacer(Modifier.width(6.dp))\n                FilterChip(selected = showFavoritesOnly, onClick = { showFavoritesOnly = true }, label = { Text("قائمتي ★") })\n            }
             if (availableCatalogs.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Row(
@@ -309,7 +312,7 @@ fun App() {
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(catalogItems) { item ->
+                    items(visibleItems) { item ->
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable {
                                 selectedItem = item
@@ -494,56 +497,75 @@ fun App() {
             )
         }
 
-        if (selectedItem != null) {
-            AlertDialog(
-                onDismissRequest = { selectedItem = null },
-                title = { Text(selectedItem?.name ?: "مصادر المشاهدة") },
-                text = {
-                    Column {
-                        selectedMeta?.let { meta ->
-                            meta.releaseInfo?.let { Text("سنة الإصدار: $it", fontSize = 12.sp) }
-                            meta.imdbRating?.let { Text("التقييم: $it", fontSize = 12.sp) }
-                            meta.runtime?.let { Text("المدة: $it", fontSize = 12.sp) }
-                            meta.genres.takeIf { it.isNotEmpty() }?.let {
-                                Text("التصنيفات: ${it.joinToString("، ")}", fontSize = 12.sp)
-                            }
-                            meta.description?.takeIf { it.isNotBlank() }?.let {
-                                Spacer(Modifier.height(6.dp))
-                                Text(it, fontSize = 13.sp)
-                            }
-                        }
-                        if (loadingStreams) {
-                            LinearProgressIndicator(Modifier.fillMaxWidth())
-                            Text("جارٍ جلب المصادر...", modifier = Modifier.padding(top = 8.dp))
-                        } else if (streams.isEmpty()) {
-                            Text("لم تُرجع الإضافة مصادر لهذا العنصر.")
-                        } else {
-                            Text("المصادر التي أعادتها الإضافة:", fontSize = 13.sp)
-                            streams.forEachIndexed { index, stream ->
-                                Spacer(Modifier.height(8.dp))
-                                Text("${index + 1}. ${stream.name ?: stream.title ?: "مصدر"}", fontWeight = FontWeight.SemiBold)
-                                stream.title?.let { Text(it, fontSize = 12.sp, color = Color.Gray) }
-                                stream.url?.let { mediaUrl ->
-                                    Text(mediaUrl, fontSize = 10.sp, color = Color.Gray, maxLines = 2)
-                                    Spacer(Modifier.height(4.dp))
-                                    Button(onClick = {
-                                        if (com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl(mediaUrl)) {
-                                            playbackUrl = mediaUrl
-                                        } else {
-                                            status = "تم رفض رابط تشغيل غير آمن. يجب أن يستخدم HTTPS."
-                                        }
-                                    }) { Text("▶ تشغيل") }
-                                } ?: Text(
-                                    "هذا المصدر لا يحتوي على رابط HTTP مباشر قابل للتشغيل داخل التطبيق.",
-                                    color = Color.Gray,
-                                    fontSize = 11.sp
-                                )
+        selectedItem?.let { selected ->
+            Dialog(onDismissRequest = { selectedItem = null }) {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 680.dp)
+                        .background(Color(0xFF10131D), RoundedCornerShape(22.dp))
+                        .verticalScroll(rememberScrollState()).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    AsyncImage(
+                        model = selectedMeta?.background ?: selected.background ?: selected.poster,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxWidth().height(190.dp)
+                            .background(Panel, RoundedCornerShape(16.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                    Text(selectedMeta?.name ?: selected.name, color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        (selectedMeta?.releaseInfo ?: selected.releaseInfo)?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
+                        (selectedMeta?.imdbRating ?: selected.imdbRating)?.let { Text("★ $it", color = Color(0xFFFFC857), fontSize = 12.sp) }
+                        selectedMeta?.runtime?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
+                    }
+                    val isFavorite = selected.id in favoriteIds.value
+                    OutlinedButton(onClick = {
+                        val next = favoriteIds.value.toMutableSet().apply {
+                            if (isFavorite) remove(selected.id) else add(selected.id)
+                        }.toSet()
+                        favoriteIds.value = next
+                        favoritesStore.save(next)
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (isFavorite) "✓ تمت الإضافة إلى قائمتي — إزالة" else "＋ أضف إلى قائمتي")
+                    }
+                    selectedMeta?.genres?.takeIf { it.isNotEmpty() }?.let {
+                        Text(it.joinToString("  •  "), color = appAccent, fontSize = 12.sp)
+                    }
+                    (selectedMeta?.description ?: selected.description)?.takeIf { it.isNotBlank() }?.let {
+                        Text(it, color = Color(0xFFE0E3EB), fontSize = 14.sp, lineHeight = 21.sp)
+                    }
+                    selectedMeta?.director?.takeIf { it.isNotEmpty() }?.let {
+                        Text("إخراج: ${it.joinToString("، ")}", color = Color.LightGray, fontSize = 12.sp)
+                    }
+                    selectedMeta?.cast?.takeIf { it.isNotEmpty() }?.let {
+                        Text("طاقم التمثيل: ${it.take(8).joinToString("، ")}", color = Color.LightGray, fontSize = 12.sp)
+                    }
+                    Divider(color = Color.DarkGray)
+                    Text("مصادر المشاهدة", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    if (loadingStreams) {
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                        Text("جارٍ جلب المصادر...", color = Color.LightGray)
+                    } else if (streams.isEmpty()) {
+                        Text("لم تُرجع الإضافة مصادر لهذا العنوان.", color = Color.LightGray, fontSize = 13.sp)
+                    } else {
+                        streams.forEachIndexed { index, stream ->
+                            Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
+                                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Text("${index + 1}. ${stream.name ?: stream.title ?: "مصدر"}", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                    stream.title?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
+                                    stream.url?.let { mediaUrl ->
+                                        Button(onClick = {
+                                            if (com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl(mediaUrl)) playbackUrl = mediaUrl
+                                            else status = "تم رفض رابط تشغيل غير آمن. يجب أن يستخدم HTTPS."
+                                        }, modifier = Modifier.fillMaxWidth()) { Text("▶ تشغيل") }
+                                    } ?: Text("هذا المصدر لا يحتوي على رابط مباشر قابل للتشغيل هنا.", color = Color.Gray, fontSize = 11.sp)
+                                }
                             }
                         }
                     }
-                },
-                confirmButton = { TextButton(onClick = { selectedItem = null }) { Text("إغلاق") } }
-            )
+                    TextButton(onClick = { selectedItem = null }, modifier = Modifier.align(Alignment.End)) { Text("إغلاق") }
+                }
+            }
         }
         playbackUrl?.let { mediaUrl ->
             Dialog(onDismissRequest = { playbackUrl = null }) {
