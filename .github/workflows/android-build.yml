@@ -1,10 +1,9 @@
 name: Android build
 
+# Android builds are kept available for manual runs, but are not triggered
+# by iOS-focused development commits.
 on:
-  push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
