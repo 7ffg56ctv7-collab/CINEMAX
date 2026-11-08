@@ -1,6 +1,6 @@
 # CINEMAX product gap analysis
 
-Reference products reviewed: Nuvio, Stremio, and Just (Video) Player. This is a capability comparison, not a claim that CINEMAX already implements every feature.
+Reference products reviewed: Nuvio Mobile (official product page and current mobile release notes), Stremio, and advanced mobile video-player capabilities. Nuvio current mobile release notes include custom subtitle styling, chapter markers, player engine failover, and improved PiP behavior. This is a capability comparison, not a claim that CINEMAX already implements every feature.
 
 ## Delivered in this UI pass
 - Arabic-first dark visual system with selectable violet, blue, rose, emerald, and amber accent colors.
@@ -15,7 +15,7 @@ Reference products reviewed: Nuvio, Stremio, and Just (Video) Player. This is a 
 | Capability | Nuvio | Stremio | CINEMAX status |
 | --- | --- | --- | --- |
 | Mobile-first catalog browsing | Yes | Yes | Basic catalog cards; more screen polish needed |
-| Artwork, ratings, metadata | Yes | Yes | Posters and available metadata; rating sources not aggregated |
+| Artwork, ratings, metadata | Yes | Yes | Posters, available metadata and ratings from addon responses; rating sources not aggregated |\n| Custom subtitle appearance and font/render modes | Yes | Addon/player dependent | Not implemented |\n| Player engine fallback and playback diagnostics | Yes | Player dependent | Native AVPlayer / Media3 only; no fallback policy |\n| Chapters and chapter markers | Yes | Addon dependent | Not implemented |\n| Picture-in-picture | Platform support | Platform support | Not yet verified end-to-end |
 | Addon catalogs | Yes | Core model | Stremio manifest/catalog support; no Nuvio JS runtime |
 | Cross-device sync | Account sync | Account sync | Not implemented |
 | Multiple profiles | Yes | Limited/account based | Not implemented |
