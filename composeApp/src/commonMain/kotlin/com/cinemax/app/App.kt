@@ -223,7 +223,13 @@ fun App() {
                 }
             }
             Spacer(Modifier.height(18.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {\n                Text("اكتشف", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)\n                Spacer(Modifier.weight(1f))\n                FilterChip(selected = !showFavoritesOnly, onClick = { showFavoritesOnly = false }, label = { Text("الكل") })\n                Spacer(Modifier.width(6.dp))\n                FilterChip(selected = showFavoritesOnly, onClick = { showFavoritesOnly = true }, label = { Text("قائمتي ★") })\n            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("اكتشف", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                FilterChip(selected = !showFavoritesOnly, onClick = { showFavoritesOnly = false }, label = { Text("الكل") })
+                Spacer(Modifier.width(6.dp))
+                FilterChip(selected = showFavoritesOnly, onClick = { showFavoritesOnly = true }, label = { Text("قائمتي ★") })
+            }
             if (availableCatalogs.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 Row(
