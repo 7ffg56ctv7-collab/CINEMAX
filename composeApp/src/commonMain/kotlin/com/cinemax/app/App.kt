@@ -71,7 +71,7 @@ fun App() {
     var playbackUrl by remember { mutableStateOf<String?>(null) }
     var playingItem by remember { mutableStateOf<StremioMetaPreview?>(null) }
 
-    LaunchedEffect(selectedItem?.id, activeAddon?.id) {
+    LaunchedEffect(selectedItem?.id, selectedItem?.name, selectedItem?.releaseInfo, activeAddon?.id, addons.size) {
         val item = selectedItem
         val addon = activeAddon
         if (item != null && addon != null) {
@@ -93,7 +93,7 @@ fun App() {
                         favoritesStore.save(favoriteItems.toList())
                     }
                 }
-                streams.addAll(repository.loadStreams(addon.manifestUrl, item.type, item.id))
+                streams.addAll(repository.loadStreamsAcrossAddons(addons.toList(), item, addon.id))
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
                 status = "تعذر جلب تفاصيل العنصر أو مصادره: ${error.message ?: "خطأ غير معروف"}"
