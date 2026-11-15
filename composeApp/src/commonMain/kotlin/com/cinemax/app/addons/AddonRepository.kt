@@ -4,6 +4,8 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.Json
+import com.cinemax.app.core.MediaIdentity
+import kotlinx.coroutines.CancellationException
 
 /**
  * Small, testable HTTP repository for remote Stremio-compatible addons.
@@ -60,6 +62,59 @@ class AddonRepository(
         return json.decodeFromString<StremioStreamResponse>(response.bodyAsText()).streams
     }
 
+    /**
+     * Match catalog entries by canonical identity, then query each addon's own ID.
+     * A matching title can have different IDs in different addons.
+     */
+    suspend fun loadStreamsAcrossAddons(
+        addons: List<InstalledAddon>,
+        selected: StremioMetaPreview,
+        preferredAddonId: String? = null
+    ): List<StremioStream> {
+        val selectedKey = MediaIdentity.key(
+            type = selected.type, id = selected.id,
+            title = selected.name, releaseInfo = selected.releaseInfo
+        )
+        val matches = linkedMapOf<String, Pair<InstalledAddon, StremioMetaPreview>>()
+        addons.forEach { addon ->
+            try {
+                val manifest = loadManifest(addon.manifestUrl)
+                manifest.catalogs.forEach { catalog ->
+                    try {
+                        loadCatalog(addon.manifestUrl, catalog.type, catalog.id).forEach { candidate ->
+                            val candidateKey = MediaIdentity.key(
+                                type = candidate.type, id = candidate.id,
+                                title = candidate.name, releaseInfo = candidate.releaseInfo
+                            )
+                            val sameMedia = if (selectedKey != null) candidateKey == selectedKey
+                            else candidate.type.equals(selected.type, ignoreCase = true) && candidate.id == selected.id
+                            if (sameMedia) matches["${addon.id}:${candidate.type}:${candidate.id}"] = addon to candidate
+                        }
+                    } catch (error: Throwable) {
+                        if (error is CancellationException) throw error
+                    }
+                }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+            }
+        }
+        // Keep the selected addon usable even when its item is beyond the first catalog page.
+        addons.firstOrNull { it.id == preferredAddonId }?.let { addon ->
+            if (matches.values.none { it.first.id == addon.id } && selected.id.isNotBlank()) {
+                matches["${addon.id}:${selected.type}:${selected.id}"] = addon to selected
+            }
+        }
+        return matches.values.flatMap { (addon, media) ->
+            try {
+                loadStreams(addon.manifestUrl, media.type, media.id).map { stream ->
+                    stream.copy(name = "${addon.name} • ${stream.name ?: stream.title ?: "مصدر"}")
+                }
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                emptyList()
+            }
+        }
+    }
     private fun validatedBase(manifestUrl: String): String =
         StremioAddonClient.manifestUrl(manifestUrl)
             ?: throw IllegalArgumentException("رابط الإضافة غير صالح")
