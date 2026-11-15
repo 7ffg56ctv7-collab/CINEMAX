@@ -82,29 +82,34 @@ class AddonRepository(
                 manifest.catalogs
                     .filter { it.type.equals(selected.type, ignoreCase = true) }
                     .forEach { catalog ->
-                        try {
-                            val candidates = linkedMapOf<String, StremioMetaPreview>()
-                            // Search-capable catalogs can find entries beyond their first page.
-                            if (catalog.extra.any { it.name.equals("search", ignoreCase = true) }) {
+                        val candidates = linkedMapOf<String, StremioMetaPreview>()
+                        // Search-capable catalogs can find entries beyond their first page.
+                        if (catalog.extra.any { it.name.equals("search", ignoreCase = true) }) {
+                            try {
                                 searchCatalog(addon.manifestUrl, catalog.type, catalog.id, selected.name)
                                     .forEach { candidates["${it.type}:${it.id}"] = it }
+                            } catch (error: Throwable) {
+                                if (error is CancellationException) throw error
+                                // Continue with the catalog's normal first page if search is unavailable.
                             }
+                        }
+                        try {
                             // Keep first-page entries too: some addons advertise search but implement it poorly.
                             loadCatalog(addon.manifestUrl, catalog.type, catalog.id)
                                 .forEach { candidates["${it.type}:${it.id}"] = it }
-                            candidates.values.forEach { candidate ->
-                                val candidateKey = MediaIdentity.key(
-                                    type = candidate.type, id = candidate.id,
-                                    title = candidate.name, releaseInfo = candidate.releaseInfo
-                                )
-                                // Never trust opaque addon-local IDs across providers: equal IDs can describe unrelated titles.
-                                val sameMedia = selectedKey != null && candidateKey == selectedKey
-                                if (sameMedia) {
-                                    matches["${addon.id}:${candidate.type}:${candidate.id}"] = addon to candidate
-                                }
-                            }
                         } catch (error: Throwable) {
                             if (error is CancellationException) throw error
+                        }
+                        candidates.values.forEach { candidate ->
+                            val candidateKey = MediaIdentity.key(
+                                type = candidate.type, id = candidate.id,
+                                title = candidate.name, releaseInfo = candidate.releaseInfo
+                            )
+                            // Never trust opaque addon-local IDs across providers: equal IDs can describe unrelated titles.
+                            val sameMedia = selectedKey != null && candidateKey == selectedKey
+                            if (sameMedia) {
+                                matches["${addon.id}:${candidate.type}:${candidate.id}"] = addon to candidate
+                            }
                         }
                     }
             } catch (error: Throwable) {
