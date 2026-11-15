@@ -48,6 +48,20 @@ class MediaIdentityTest {
     }
 
     @Test
+    fun opaqueAddonIdsDoNotOverrideDifferentTitles() {
+        val first = MediaIdentity.key(type = "movie", id = "catalog-item-7", title = "Dune", releaseInfo = "2021")
+        val second = MediaIdentity.key(type = "movie", id = "catalog-item-7", title = "Arrival", releaseInfo = "2016")
+        kotlin.test.assertNotEquals(first, second)
+    }
+
+    @Test
+    fun canonicalImdbIdMatchesEvenWhenTitlesDiffer() {
+        assertEquals(
+            MediaIdentity.key(type = "movie", id = "tt1234567", title = "Dune", releaseInfo = "2021"),
+            MediaIdentity.key(type = "movie", id = "tt1234567", title = "Different label", releaseInfo = "2020")
+        )
+    }
+    @Test
     fun refusesEmptyType() {
         assertNull(MediaIdentity.key(type = "movie", title = "Dune", releaseInfo = "2021").let {
             MediaIdentity.key(type = " ", title = "Dune", releaseInfo = "2021")

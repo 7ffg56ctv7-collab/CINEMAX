@@ -97,8 +97,8 @@ class AddonRepository(
                                     type = candidate.type, id = candidate.id,
                                     title = candidate.name, releaseInfo = candidate.releaseInfo
                                 )
-                                val sameMedia = (candidate.type.equals(selected.type, ignoreCase = true) && candidate.id == selected.id) ||
-                                    (selectedKey != null && candidateKey == selectedKey)
+                                // Never trust opaque addon-local IDs across providers: equal IDs can describe unrelated titles.
+                                val sameMedia = selectedKey != null && candidateKey == selectedKey
                                 if (sameMedia) {
                                     matches["${addon.id}:${candidate.type}:${candidate.id}"] = addon to candidate
                                 }
