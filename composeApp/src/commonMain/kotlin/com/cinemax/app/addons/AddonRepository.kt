@@ -86,8 +86,8 @@ class AddonRepository(
                                 type = candidate.type, id = candidate.id,
                                 title = candidate.name, releaseInfo = candidate.releaseInfo
                             )
-                            val sameMedia = if (selectedKey != null) candidateKey == selectedKey
-                            else candidate.type.equals(selected.type, ignoreCase = true) && candidate.id == selected.id
+                            val sameMedia = (candidate.type.equals(selected.type, ignoreCase = true) && candidate.id == selected.id) ||
+                                (selectedKey != null && candidateKey == selectedKey)
                             if (sameMedia) matches["${addon.id}:${candidate.type}:${candidate.id}"] = addon to candidate
                         }
                     } catch (error: Throwable) {
