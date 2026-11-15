@@ -79,21 +79,34 @@ class AddonRepository(
         addons.forEach { addon ->
             try {
                 val manifest = loadManifest(addon.manifestUrl)
-                manifest.catalogs.forEach { catalog ->
-                    try {
-                        loadCatalog(addon.manifestUrl, catalog.type, catalog.id).forEach { candidate ->
-                            val candidateKey = MediaIdentity.key(
-                                type = candidate.type, id = candidate.id,
-                                title = candidate.name, releaseInfo = candidate.releaseInfo
-                            )
-                            val sameMedia = (candidate.type.equals(selected.type, ignoreCase = true) && candidate.id == selected.id) ||
-                                (selectedKey != null && candidateKey == selectedKey)
-                            if (sameMedia) matches["${addon.id}:${candidate.type}:${candidate.id}"] = addon to candidate
+                manifest.catalogs
+                    .filter { it.type.equals(selected.type, ignoreCase = true) }
+                    .forEach { catalog ->
+                        try {
+                            val candidates = linkedMapOf<String, StremioMetaPreview>()
+                            // Search-capable catalogs can find entries beyond their first page.
+                            if (catalog.extra.any { it.name.equals("search", ignoreCase = true) }) {
+                                searchCatalog(addon.manifestUrl, catalog.type, catalog.id, selected.name)
+                                    .forEach { candidates["${it.type}:${it.id}"] = it }
+                            }
+                            // Keep first-page entries too: some addons advertise search but implement it poorly.
+                            loadCatalog(addon.manifestUrl, catalog.type, catalog.id)
+                                .forEach { candidates["${it.type}:${it.id}"] = it }
+                            candidates.values.forEach { candidate ->
+                                val candidateKey = MediaIdentity.key(
+                                    type = candidate.type, id = candidate.id,
+                                    title = candidate.name, releaseInfo = candidate.releaseInfo
+                                )
+                                val sameMedia = (candidate.type.equals(selected.type, ignoreCase = true) && candidate.id == selected.id) ||
+                                    (selectedKey != null && candidateKey == selectedKey)
+                                if (sameMedia) {
+                                    matches["${addon.id}:${candidate.type}:${candidate.id}"] = addon to candidate
+                                }
+                            }
+                        } catch (error: Throwable) {
+                            if (error is CancellationException) throw error
                         }
-                    } catch (error: Throwable) {
-                        if (error is CancellationException) throw error
                     }
-                }
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
             }
