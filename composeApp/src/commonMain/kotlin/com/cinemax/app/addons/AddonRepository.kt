@@ -122,7 +122,7 @@ class AddonRepository(
                 matches["${addon.id}:${selected.type}:${selected.id}"] = addon to selected
             }
         }
-        return matches.values.flatMap { (addon, media) ->
+        val collected = matches.values.flatMap { (addon, media) ->
             try {
                 loadStreams(addon.manifestUrl, media.type, media.id).map { stream ->
                     stream.copy(name = "${addon.name} • ${stream.name ?: stream.title ?: "مصدر"}")
@@ -131,6 +131,12 @@ class AddonRepository(
                 if (error is CancellationException) throw error
                 emptyList()
             }
+        }
+        // Multiple addons can expose the same direct media URL.
+        val seenUrls = mutableSetOf<String>()
+        return collected.filter { stream ->
+            val url = stream.url?.trim()
+            url.isNullOrEmpty() || seenUrls.add(url)
         }
     }
     private fun validatedBase(manifestUrl: String): String =
