@@ -15,7 +15,11 @@ object MediaIdentity {
         title: String? = null,
         releaseInfo: String? = null
     ): String? {
-        val normalizedType = type.trim().lowercase()
+        val normalizedType = when (type.trim().lowercase()) {
+            "film", "movies" -> "movie"
+            "tv", "show", "shows", "tvshow", "tvseries" -> "series"
+            else -> type.trim().lowercase()
+        }
         if (normalizedType.isEmpty()) return null
 
         val imdb = normalizeImdbId(imdbId)
@@ -28,9 +32,12 @@ object MediaIdentity {
 
         val normalizedTitle = normalizeTitle(title.orEmpty())
         val year = YEAR_REGEX.find(releaseInfo.orEmpty())?.value
+            ?: YEAR_REGEX.find(title.orEmpty())?.value
         if (normalizedTitle.isEmpty() || year == null) return null
 
-        return "$normalizedType:title:$normalizedTitle:$year"
+        val titleWithoutYear = normalizeTitle(title.orEmpty().replace(YEAR_REGEX, " "))
+        if (titleWithoutYear.isEmpty()) return null
+        return "$normalizedType:title:$titleWithoutYear:$year"
     }
 
     /** Stable persistence key; opaque IDs are namespaced with title to avoid cross-addon collisions. */
@@ -40,14 +47,14 @@ object MediaIdentity {
     }
 
     private fun normalizeImdbId(value: String?): String? {
-        val candidate = value?.trim()?.lowercase() ?: return null
+        val candidate = value?.trim()?.lowercase()?.removePrefix("imdb:") ?: return null
         return IMDB_REGEX.matchEntire(candidate)?.value
     }
 
     private fun normalizeTmdbId(value: String?): String? {
         val candidate = value?.trim()?.lowercase() ?: return null
         val match = TMDB_REGEX.matchEntire(candidate) ?: return null
-        return match.groupValues[1]
+        return match.groupValues[1].trimStart('0').ifEmpty { "0" }
     }
 
     /**
@@ -58,6 +65,8 @@ object MediaIdentity {
         value.trim().lowercase().forEach { char ->
             when {
                 char in '\u064B'..'\u065F' || char == '\u0670' || char == 'ـ' -> Unit
+                char == 'أ' || char == 'إ' || char == 'آ' -> append('ا')
+                char == 'ى' -> append('ي')
                 char.isLetterOrDigit() -> append(char)
                 else -> append(' ')
             }
