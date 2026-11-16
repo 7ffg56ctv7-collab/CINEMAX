@@ -64,6 +64,7 @@ fun App() {
     var activeCatalogSupportsSearch by remember { mutableStateOf(false) }
     var activeCatalogSupportsSkip by remember { mutableStateOf(false) }
     var loadingMore by remember { mutableStateOf(false) }
+    var catalogRequestVersion by remember { mutableIntStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
@@ -141,7 +142,10 @@ fun App() {
 
     fun selectAddon(addon: InstalledAddon) {
         if (activeAddon?.id == addon.id) return
+        catalogRequestVersion++
+        val requestVersion = catalogRequestVersion
         activeAddon = addon
+        availableCatalogs.clear()
         catalogItems.clear()
         selectedItem = null
         playbackUrl = null
@@ -151,6 +155,7 @@ fun App() {
         scope.launch {
             try {
                 val manifest = repository.loadManifest(addon.manifestUrl)
+                if (requestVersion != catalogRequestVersion) return@launch
                 availableCatalogs.clear()
                 availableCatalogs.addAll(manifest.catalogs)
                 val catalog = manifest.catalogs.firstOrNull()
@@ -166,14 +171,15 @@ fun App() {
                     activeCatalogSupportsSearch = catalog.extra.any { it.name == "search" }
                     activeCatalogSupportsSkip = catalog.extra.any { it.name == "skip" }
                     val loaded = repository.loadCatalog(addon.manifestUrl, catalog.type, catalog.id)
+                    if (requestVersion != catalogRequestVersion) return@launch
                     catalogItems.addAll(loaded)
                     status = "المصدر النشط: ${addon.name} • ${loaded.size} عنصرًا"
                 }
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
-                status = "تعذر فتح ${addon.name}: ${error.message ?: "خطأ غير معروف"}"
+                if (requestVersion == catalogRequestVersion) status = "تعذر فتح ${addon.name}: ${error.message ?: "خطأ غير معروف"}"
             } finally {
-                loading = false
+                if (requestVersion == catalogRequestVersion) loading = false
             }
         }
     }
@@ -226,6 +232,7 @@ fun App() {
                             )
                             Spacer(Modifier.weight(1f))
                             TextButton(onClick = {
+                                catalogRequestVersion++
                                 addons.remove(addon)
                                 addonStore.save(addons.toList())
                                 if (activeAddon?.id == addon.id) {
@@ -296,18 +303,21 @@ fun App() {
                                 activeCatalogSupportsSearch = catalog.extra.any { it.name == "search" }
                                 activeCatalogSupportsSkip = catalog.extra.any { it.name == "skip" }
                                 searchQuery = ""
+                                catalogRequestVersion++
+                                val requestVersion = catalogRequestVersion
                                 catalogItems.clear()
                                 loading = true
                                 scope.launch {
                                     try {
                                         val items = repository.loadCatalog(addon.manifestUrl, catalog.type, catalog.id)
+                                        if (requestVersion != catalogRequestVersion) return@launch
                                         catalogItems.addAll(items)
                                         status = "تم تحميل ${catalog.name ?: catalog.id} • ${items.size} عنصرًا"
                                     } catch (error: Exception) {
                                         if (error is CancellationException) throw error
-                                        status = "تعذر تحميل الكتالوج: ${error.message ?: "خطأ غير معروف"}"
+                                        if (requestVersion == catalogRequestVersion) status = "تعذر تحميل الكتالوج: ${error.message ?: "خطأ غير معروف"}"
                                     } finally {
-                                        loading = false
+                                        if (requestVersion == catalogRequestVersion) loading = false
                                     }
                                 }
                             },
@@ -336,20 +346,24 @@ fun App() {
                             val addon = activeAddon ?: return@Button
                             val type = activeCatalogType ?: return@Button
                             val catalogId = activeCatalogId ?: return@Button
+                            catalogRequestVersion++
+                            val requestVersion = catalogRequestVersion
+                            val submittedQuery = searchQuery.trim()
                             searching = true
                             scope.launch {
                                 try {
                                     val results = repository.searchCatalog(
-                                        addon.manifestUrl, type, catalogId, searchQuery
+                                        addon.manifestUrl, type, catalogId, submittedQuery
                                     )
+                                    if (requestVersion != catalogRequestVersion) return@launch
                                     catalogItems.clear()
                                     catalogItems.addAll(results)
                                     status = "نتائج البحث: ${results.size}"
                                 } catch (error: Exception) {
                                     if (error is CancellationException) throw error
-                                    status = "تعذر البحث: ${error.message ?: "خطأ غير معروف"}"
+                                    if (requestVersion == catalogRequestVersion) status = "تعذر البحث: ${error.message ?: "خطأ غير معروف"}"
                                 } finally {
-                                    searching = false
+                                    if (requestVersion == catalogRequestVersion) searching = false
                                 }
                             }
                         }
@@ -407,27 +421,31 @@ fun App() {
                                     val addon = activeAddon ?: return@Button
                                     val type = activeCatalogType ?: return@Button
                                     val catalogId = activeCatalogId ?: return@Button
+                                    val requestVersion = catalogRequestVersion
+                                    val nextOffset = catalogItems.size
                                     loadingMore = true
                                     scope.launch {
                                         try {
                                             val nextPage = if (searchQuery.isNotBlank() && activeCatalogSupportsSearch) {
                                                 repository.searchCatalog(
                                                     addon.manifestUrl, type, catalogId,
-                                                    searchQuery, skip = catalogItems.size
+                                                    searchQuery, skip = nextOffset
                                                 )
                                             } else {
                                                 repository.loadCatalog(
                                                     addon.manifestUrl, type, catalogId,
-                                                    extra = mapOf("skip" to catalogItems.size.toString())
+                                                    extra = mapOf("skip" to nextOffset.toString())
                                                 )
                                             }
-                                            catalogItems.addAll(nextPage)
+                                            if (requestVersion != catalogRequestVersion) return@launch
+                                            val existingIds = catalogItems.map { "${it.type}:${it.id}" }.toSet()
+                                            catalogItems.addAll(nextPage.distinctBy { "${it.type}:${it.id}" }.filterNot { "${it.type}:${it.id}" in existingIds })
                                             status = "تم تحميل ${nextPage.size} عنصر إضافي"
                                         } catch (error: Exception) {
                                             if (error is CancellationException) throw error
-                                            status = "تعذر تحميل المزيد: ${error.message ?: "خطأ غير معروف"}"
+                                            if (requestVersion == catalogRequestVersion) status = "تعذر تحميل المزيد: ${error.message ?: "خطأ غير معروف"}"
                                         } finally {
-                                            loadingMore = false
+                                            if (requestVersion == catalogRequestVersion) loadingMore = false
                                         }
                                     }
                                 }
@@ -506,6 +524,7 @@ fun App() {
                                 addons.removeAll { it.id == installed.id }
                                 addons.add(installed)
                                 addonStore.save(addons.toList())
+                                catalogRequestVersion++
                                 activeAddon = installed
                                 selectedItem = null
                                 playbackUrl = null
