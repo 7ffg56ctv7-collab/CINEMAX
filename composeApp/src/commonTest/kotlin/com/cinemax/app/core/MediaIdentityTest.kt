@@ -68,3 +68,38 @@ class MediaIdentityTest {
         })
     }
 }
+
+class StremioAddonClientSecurityTest {
+    @Test
+    fun acceptsHttpsManifestAndAddsManifestPath() {
+        assertEquals(
+            "https://addons.example.org/manifest.json",
+            com.cinemax.app.addons.StremioAddonClient.manifestUrl("https://addons.example.org")
+        )
+    }
+
+    @Test
+    fun rejectsInsecureRemoteAndCredentialUrls() {
+        assertNull(com.cinemax.app.addons.StremioAddonClient.manifestUrl("http://addons.example.org"))
+        assertNull(com.cinemax.app.addons.StremioAddonClient.manifestUrl("https://user:password@addons.example.org"))
+        assertNull(com.cinemax.app.addons.StremioAddonClient.manifestUrl("file:///etc/passwd"))
+    }
+
+    @Test
+    fun allowsLoopbackHttpOnlyForDevelopment() {
+        assertEquals(
+            "http://127.0.0.1:7000/manifest.json",
+            com.cinemax.app.addons.StremioAddonClient.manifestUrl("http://127.0.0.1:7000")
+        )
+        assertNull(com.cinemax.app.addons.StremioAddonClient.manifestUrl("http://192.168.1.20:7000"))
+    }
+
+    @Test
+    fun mediaUrlsMustBeHttpsOrLoopbackWithoutCredentials() {
+        assertTrue(com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl("https://cdn.example.org/video.m3u8"))
+        assertTrue(com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl("http://localhost:8080/video.mp4"))
+        assertFalse(com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl("http://cdn.example.org/video.mp4"))
+        assertFalse(com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl("https://user:pass@cdn.example.org/video.mp4"))
+        assertFalse(com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl("javascript:alert(1)"))
+    }
+}
