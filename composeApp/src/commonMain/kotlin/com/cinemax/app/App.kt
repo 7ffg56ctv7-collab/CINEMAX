@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -184,6 +186,7 @@ fun App() {
         else -> Accent
     }
     val appBackground = if (preferences.oledBlack) Color.Black else Ink
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
     MaterialTheme(colorScheme = darkColorScheme(
         background = appBackground, surface = Panel, primary = appAccent,
         onBackground = Color.White, onSurface = Color.White
@@ -192,7 +195,6 @@ fun App() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("RAIF", fontSize = 25.sp, fontWeight = FontWeight.Black, color = Color.White)
                 Spacer(Modifier.weight(1f))
-                Text("AR  /  EN", color = Color.LightGray, fontSize = 12.sp)
                 Spacer(Modifier.width(10.dp))
                 IconButton(onClick = { showSettings = true }) { Text("⚙", color = appAccent, fontSize = 24.sp) }
             }
@@ -684,6 +686,7 @@ fun App() {
                 }
             }
         }
+    }
     }
 }
 
