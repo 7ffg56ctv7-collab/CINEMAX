@@ -42,14 +42,14 @@ jobs:
           brew install xcodegen librsvg
           rsvg-convert -w 1024 -h 1024 iosApp/Resources/cinemax-icon.svg > iosApp/Sources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
       - name: Build iPhone device framework
-        run: gradle :composeApp:linkDebugFrameworkIosArm64
+        run: gradle :composeApp:linkReleaseFrameworkIosArm64
       - name: Build iOS Simulator framework
-        run: gradle :composeApp:linkDebugFrameworkIosSimulatorArm64
+        run: gradle :composeApp:linkReleaseFrameworkIosSimulatorArm64
       - name: Assemble universal XCFramework
         run: |
           xcodebuild -create-xcframework \
-            -framework composeApp/build/bin/iosArm64/debugFramework/CinemaxKit.framework \
-            -framework composeApp/build/bin/iosSimulatorArm64/debugFramework/CinemaxKit.framework \
+            -framework composeApp/build/bin/iosArm64/releaseFramework/CinemaxKit.framework \
+            -framework composeApp/build/bin/iosSimulatorArm64/releaseFramework/CinemaxKit.framework \
             -output composeApp/build/CinemaxKit.xcframework
       - name: Generate native Xcode project
         working-directory: iosApp
@@ -60,7 +60,7 @@ jobs:
             -project iosApp/CINEMAX.xcodeproj \
             -scheme CINEMAX \
             -sdk iphonesimulator \
-            -configuration Debug \
+            -configuration Release \
             -derivedDataPath build/ios-simulator-derived \
             ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=YES \
@@ -72,7 +72,7 @@ jobs:
             -project iosApp/CINEMAX.xcodeproj \
             -scheme CINEMAX \
             -sdk iphoneos \
-            -configuration Debug \
+            -configuration Release \
             -derivedDataPath build/ios-device-derived \
             CODE_SIGNING_ALLOWED=NO
       - name: Package iOS build outputs
@@ -83,15 +83,20 @@ jobs:
           test -n "$DEVICE_APP"
           ditto -c -k --sequesterRsrc --keepParent "$SIM_APP" build/RAIF-iOS-Simulator.zip
           ditto -c -k --sequesterRsrc --keepParent "$DEVICE_APP" build/RAIF-iOS-Device-Unsigned.zip
-      - name: Enforce Kotlin test result
-        if: always() && steps.kotlin_tests.outcome == 'failure'
-        run: |
-          echo "Kotlin/Native tests failed; see RAIF-iOS-Test-Reports artifact."
-          exit 1
+          mkdir -p build/ipa/Payload
+          ditto "$DEVICE_APP" build/ipa/Payload/RAIF.app
+          (cd build/ipa && zip -q -r ../RAIF-iPhone-Unsigned.ipa Payload)
+          unzip -t build/RAIF-iPhone-Unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: RAIF-iOS-Builds
           path: |
             build/RAIF-iOS-Simulator.zip
             build/RAIF-iOS-Device-Unsigned.zip
+            build/RAIF-iPhone-Unsigned.ipa
           if-no-files-found: error
+      - name: Enforce Kotlin test result
+        if: always() && steps.kotlin_tests.outcome == 'failure'
+        run: |
+          echo "Kotlin/Native tests failed; see RAIF-iOS-Test-Reports artifact."
+          exit 1
