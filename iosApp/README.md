@@ -1,4 +1,4 @@
-# CINEMAX iOS app
+# RAIF iOS app
 
 This folder contains the native SwiftUI iOS application shell. The shared screens and Stremio integration are provided by the Kotlin Multiplatform `CinemaxKit` framework.
 

@@ -190,7 +190,7 @@ fun App() {
     )) {
         Column(Modifier.fillMaxSize().background(appBackground).padding(horizontal = 18.dp, vertical = 16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("CINEMAX", fontSize = 25.sp, fontWeight = FontWeight.Black, color = Color.White)
+                Text("RAIF", fontSize = 25.sp, fontWeight = FontWeight.Black, color = Color.White)
                 Spacer(Modifier.weight(1f))
                 Text("AR  /  EN", color = Color.LightGray, fontSize = 12.sp)
                 Spacer(Modifier.width(10.dp))
@@ -441,7 +441,7 @@ fun App() {
         if (showSettings) {
             AlertDialog(
                 onDismissRequest = { showSettings = false },
-                title = { Column { Text("إعدادات CINEMAX", fontWeight = FontWeight.Bold); Text("خصص تجربة المشاهدة كما تحب", fontSize = 12.sp, color = Color.Gray) } },
+                title = { Column { Text("إعدادات RAIF", fontWeight = FontWeight.Bold); Text("خصص تجربة المشاهدة كما تحب", fontSize = 12.sp, color = Color.Gray) } },
                 text = {
                     Column(modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("المظهر", color = appAccent, fontWeight = FontWeight.Bold)
@@ -475,7 +475,7 @@ fun App() {
                         Divider()
                         Text("الإضافات", color = appAccent, fontWeight = FontWeight.Bold)
                         Text("إدارة المصادر من بطاقة «مصادرك وإضافاتك» في الرئيسية. تشغيل شيفرات الإضافات غير مفعّل حفاظًا على الأمان.", fontSize = 12.sp, color = Color.Gray)
-                        Text("CINEMAX • إصدار تجريبي", fontSize = 11.sp, color = Color.Gray)
+                        Text("RAIF • إصدار تجريبي", fontSize = 11.sp, color = Color.Gray)
                     }
                 },
                 confirmButton = { TextButton(onClick = { showSettings = false }) { Text("تم") } }
@@ -651,7 +651,7 @@ fun App() {
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("مشغل CINEMAX", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("مشغل RAIF", color = Color.White, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
                         TextButton(onClick = { playbackUrl = null; playingItem = null }) { Text("إغلاق") }
                     }

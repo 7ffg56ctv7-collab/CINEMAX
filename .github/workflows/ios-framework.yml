@@ -64,16 +64,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO
       - name: Package iOS build outputs
         run: |
-          SIM_APP=$(find build/ios-simulator-derived/Build/Products -maxdepth 2 -name 'CINEMAX.app' -type d | head -n 1)
-          DEVICE_APP=$(find build/ios-device-derived/Build/Products -maxdepth 2 -name 'CINEMAX.app' -type d | head -n 1)
+          SIM_APP=$(find build/ios-simulator-derived/Build/Products -maxdepth 2 -name 'RAIF.app' -type d | head -n 1)
+          DEVICE_APP=$(find build/ios-device-derived/Build/Products -maxdepth 2 -name 'RAIF.app' -type d | head -n 1)
           test -n "$SIM_APP"
           test -n "$DEVICE_APP"
-          ditto -c -k --sequesterRsrc --keepParent "$SIM_APP" build/CINEMAX-iOS-Simulator.zip
-          ditto -c -k --sequesterRsrc --keepParent "$DEVICE_APP" build/CINEMAX-iOS-Device-Unsigned.zip
+          ditto -c -k --sequesterRsrc --keepParent "$SIM_APP" build/RAIF-iOS-Simulator.zip
+          ditto -c -k --sequesterRsrc --keepParent "$DEVICE_APP" build/RAIF-iOS-Device-Unsigned.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: CINEMAX-iOS-Builds
+          name: RAIF-iOS-Builds
           path: |
-            build/CINEMAX-iOS-Simulator.zip
-            build/CINEMAX-iOS-Device-Unsigned.zip
+            build/RAIF-iOS-Simulator.zip
+            build/RAIF-iOS-Device-Unsigned.zip
           if-no-files-found: error
