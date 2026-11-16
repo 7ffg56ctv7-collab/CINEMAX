@@ -25,7 +25,18 @@ jobs:
         with:
           gradle-version: '8.14'
       - name: Run common Kotlin tests
+        id: kotlin_tests
+        continue-on-error: true
         run: gradle :composeApp:iosSimulatorArm64Test
+      - name: Upload Kotlin/Native test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: RAIF-iOS-Test-Reports
+          path: |
+            composeApp/build/reports/tests/iosSimulatorArm64Test/
+            composeApp/build/test-results/iosSimulatorArm64Test/
+          if-no-files-found: warn
       - name: Install icon tooling
         run: |
           brew install xcodegen librsvg
@@ -72,6 +83,11 @@ jobs:
           test -n "$DEVICE_APP"
           ditto -c -k --sequesterRsrc --keepParent "$SIM_APP" build/RAIF-iOS-Simulator.zip
           ditto -c -k --sequesterRsrc --keepParent "$DEVICE_APP" build/RAIF-iOS-Device-Unsigned.zip
+      - name: Enforce Kotlin test result
+        if: always() && steps.kotlin_tests.outcome == 'failure'
+        run: |
+          echo "Kotlin/Native tests failed; see RAIF-iOS-Test-Reports artifact."
+          exit 1
       - uses: actions/upload-artifact@v4
         with:
           name: RAIF-iOS-Builds
