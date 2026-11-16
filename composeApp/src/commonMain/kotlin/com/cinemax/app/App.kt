@@ -144,6 +144,8 @@ fun App() {
         if (activeAddon?.id == addon.id) return
         catalogRequestVersion++
         val requestVersion = catalogRequestVersion
+        searching = false
+        loadingMore = false
         activeAddon = addon
         availableCatalogs.clear()
         catalogItems.clear()
@@ -233,6 +235,8 @@ fun App() {
                             Spacer(Modifier.weight(1f))
                             TextButton(onClick = {
                                 catalogRequestVersion++
+                                searching = false
+                                loadingMore = false
                                 addons.remove(addon)
                                 addonStore.save(addons.toList())
                                 if (activeAddon?.id == addon.id) {
@@ -305,6 +309,8 @@ fun App() {
                                 searchQuery = ""
                                 catalogRequestVersion++
                                 val requestVersion = catalogRequestVersion
+                                searching = false
+                                loadingMore = false
                                 catalogItems.clear()
                                 loading = true
                                 scope.launch {
@@ -525,6 +531,8 @@ fun App() {
                                 addons.add(installed)
                                 addonStore.save(addons.toList())
                                 catalogRequestVersion++
+                                searching = false
+                                loadingMore = false
                                 activeAddon = installed
                                 selectedItem = null
                                 playbackUrl = null
