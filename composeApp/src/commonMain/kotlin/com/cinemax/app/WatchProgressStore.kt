@@ -1,6 +1,7 @@
 package com.cinemax.app
 
 import com.cinemax.app.addons.StremioMetaPreview
+import com.cinemax.app.core.MediaIdentity
 import com.russhwolf.settings.Settings
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -33,15 +34,28 @@ class WatchProgressStore(
 
     fun save(progress: WatchProgress) {
         if (progress.durationMillis <= 0L || progress.positionMillis < 0L) return
-        val current = load().filterNot { it.item.id == progress.item.id }
+        val key = identityKey(progress.item)
+        val current = load().filterNot { identityKey(it.item) == key }
         val next = if (progress.positionMillis >= progress.durationMillis - 15_000L) current
             else listOf(progress) + current
         settings.putString(KEY, json.encodeToString(ListSerializer(WatchProgress.serializer()), next.take(MAX_ITEMS)))
     }
 
+    fun remove(item: StremioMetaPreview) {
+        val key = identityKey(item)
+        settings.putString(
+            KEY,
+            json.encodeToString(ListSerializer(WatchProgress.serializer()), load().filterNot { identityKey(it.item) == key })
+        )
+    }
+
+    /** Legacy ID-only removal retained for existing callers. */
     fun remove(id: String) {
         settings.putString(KEY, json.encodeToString(ListSerializer(WatchProgress.serializer()), load().filterNot { it.item.id == id }))
     }
+
+    private fun identityKey(item: StremioMetaPreview) =
+        MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
 
     private companion object {
         const val KEY = "cinemax.watch.progress.v1"

@@ -33,6 +33,12 @@ object MediaIdentity {
         return "$normalizedType:title:$normalizedTitle:$year"
     }
 
+    /** Stable persistence key; opaque IDs are namespaced with title to avoid cross-addon collisions. */
+    fun storageKey(type: String, id: String, title: String, releaseInfo: String? = null): String {
+        return key(type = type, id = id, title = title, releaseInfo = releaseInfo)
+            ?: "${type.trim().lowercase()}:local:${id.trim().lowercase()}:${normalizeTitle(title)}"
+    }
+
     private fun normalizeImdbId(value: String?): String? {
         val candidate = value?.trim()?.lowercase() ?: return null
         return IMDB_REGEX.matchEntire(candidate)?.value

@@ -26,6 +26,7 @@ import com.cinemax.app.addons.AddonRepository
 import com.cinemax.app.addons.StremioMetaPreview
 import com.cinemax.app.addons.StremioStream
 import com.cinemax.app.addons.createCinemaxHttpClient
+import com.cinemax.app.core.MediaIdentity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -42,7 +43,7 @@ fun App() {
     val preferencesStore = remember { CinemaxPreferencesStore() }
     val favoritesStore = remember { FavoritesStore() }
     val favoriteItems = remember { mutableStateListOf<com.cinemax.app.addons.StremioMetaPreview>().apply { addAll(favoritesStore.load()) } }
-    val favoriteIds = favoriteItems.map { it.id }.toSet()
+    val favoriteIds = favoriteItems.map { MediaIdentity.storageKey(it.type, it.id, it.name, it.releaseInfo) }.toSet()
     val watchProgressStore = remember { WatchProgressStore() }
     val watchProgressItems = remember { mutableStateListOf<WatchProgress>().apply { addAll(watchProgressStore.load()) } }
     var showFavoritesOnly by remember { mutableStateOf(false) }
@@ -81,7 +82,8 @@ fun App() {
             try {
                 selectedMeta = repository.loadMeta(addon.manifestUrl, item.type, item.id)
                 selectedMeta?.let { meta ->
-                    val index = favoriteItems.indexOfFirst { it.id == item.id }
+                    val itemKey = MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
+                    val index = favoriteItems.indexOfFirst { MediaIdentity.storageKey(it.type, it.id, it.name, it.releaseInfo) == itemKey }
                     if (index >= 0) {
                         favoriteItems[index] = item.copy(
                             name = meta.name, poster = meta.poster ?: item.poster,
@@ -261,7 +263,7 @@ fun App() {
                                     Text(progress.item.name, color = Color.White, fontSize = 12.sp, maxLines = 1, modifier = Modifier.weight(1f))
                                     TextButton(
                                         onClick = {
-                                            watchProgressStore.remove(progress.item.id)
+                                            watchProgressStore.remove(progress.item)
                                             watchProgressItems.removeAll { it.item.id == progress.item.id }
                                         },
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
@@ -569,10 +571,11 @@ fun App() {
                         (selectedMeta?.imdbRating ?: selected.imdbRating)?.let { Text("★ $it", color = Color(0xFFFFC857), fontSize = 12.sp) }
                         selectedMeta?.runtime?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
                     }
-                    val isFavorite = selected.id in favoriteIds
+                    val selectedKey = MediaIdentity.storageKey(selected.type, selected.id, selected.name, selected.releaseInfo)
+                    val isFavorite = selectedKey in favoriteIds
                     OutlinedButton(onClick = {
                         if (isFavorite) {
-                            favoriteItems.removeAll { it.id == selected.id }
+                            favoriteItems.removeAll { MediaIdentity.storageKey(it.type, it.id, it.name, it.releaseInfo) == selectedKey }
                         } else {
                             val meta = selectedMeta
                             val saved = selected.copy(
@@ -583,7 +586,7 @@ fun App() {
                                 releaseInfo = meta?.releaseInfo ?: selected.releaseInfo,
                                 imdbRating = meta?.imdbRating ?: selected.imdbRating
                             )
-                            favoriteItems.removeAll { it.id == selected.id }
+                            favoriteItems.removeAll { MediaIdentity.storageKey(it.type, it.id, it.name, it.releaseInfo) == selectedKey }
                             favoriteItems.add(saved)
                         }
                         favoritesStore.save(favoriteItems.toList())
@@ -656,7 +659,7 @@ fun App() {
                         url = mediaUrl,
                         modifier = Modifier.fillMaxWidth().height(260.dp),
                         initialPositionMillis = playingItem?.let { item ->
-                            watchProgressItems.firstOrNull { it.item.id == item.id }?.positionMillis ?: 0L
+                            watchProgressItems.firstOrNull { MediaIdentity.storageKey(it.item.type, it.item.id, it.item.name, it.item.releaseInfo) == MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo) }?.positionMillis ?: 0L
                         } ?: 0L,
                         onProgress = { positionMillis, durationMillis ->
                             val item = playingItem
@@ -668,7 +671,7 @@ fun App() {
                                     updatedAtEpochMillis = Clock.System.now().toEpochMilliseconds()
                                 )
                                 watchProgressStore.save(progress)
-                                watchProgressItems.removeAll { it.item.id == item.id }
+                                watchProgressItems.removeAll { MediaIdentity.storageKey(it.item.type, it.item.id, it.item.name, it.item.releaseInfo) == MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo) }
                                 if (positionMillis < durationMillis - 15_000L) watchProgressItems.add(0, progress)
                             }
                         }

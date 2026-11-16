@@ -1,6 +1,7 @@
 package com.cinemax.app
 
 import com.cinemax.app.addons.StremioMetaPreview
+import com.cinemax.app.core.MediaIdentity
 import com.russhwolf.settings.Settings
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.decodeFromString
@@ -18,8 +19,17 @@ class FavoritesStore(
     }.getOrDefault(emptyList())
 
     fun save(items: List<StremioMetaPreview>) {
-        settings.putString(KEY, json.encodeToString(ListSerializer(StremioMetaPreview.serializer()), items.distinctBy { it.id }))
+        settings.putString(
+            KEY,
+            json.encodeToString(
+                ListSerializer(StremioMetaPreview.serializer()),
+                items.distinctBy { identityKey(it) }
+            )
+        )
     }
+
+    private fun identityKey(item: StremioMetaPreview) =
+        MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
 
     private companion object { const val KEY = "cinemax.library.favorites.metadata.v2" }
 }
