@@ -147,12 +147,17 @@ fun App() {
     }
 
     fun selectAddon(addon: InstalledAddon) {
-        if (activeAddon?.id == addon.id) return
+        if (activeAddon?.id == addon.id && activeAddon?.manifestUrl == addon.manifestUrl) return
         catalogRequestVersion++
         val requestVersion = catalogRequestVersion
         searching = false
         loadingMore = false
         activeAddon = addon
+        activeCatalogType = null
+        activeCatalogId = null
+        activeCatalogSupportsSearch = false
+        activeCatalogSupportsSkip = false
+        selectedMeta = null
         availableCatalogs.clear()
         catalogItems.clear()
         selectedItem = null
@@ -241,15 +246,19 @@ fun App() {
                             )
                             Spacer(Modifier.weight(1f))
                             TextButton(onClick = {
-                                catalogRequestVersion++
-                                searching = false
-                                loadingMore = false
+                                val removingActiveAddon = activeAddon?.id == addon.id && activeAddon?.manifestUrl == addon.manifestUrl
+                                if (removingActiveAddon) {
+                                    catalogRequestVersion++
+                                    searching = false
+                                    loadingMore = false
+                                }
                                 addons.remove(addon)
                                 addonStore.save(addons.toList())
-                                if (activeAddon?.id == addon.id) {
+                                if (removingActiveAddon) {
                                     activeAddon = null
                                     catalogItems.clear()
                                     selectedItem = null
+                                    selectedMeta = null
                                     playbackUrl = null
                                     playingItem = null
                                     availableCatalogs.clear()
@@ -434,10 +443,10 @@ fun App() {
                             }
                         }
                     }
-                    if (activeCatalogSupportsSkip) {
+                    if (activeCatalogSupportsSkip && !showFavoritesOnly) {
                         item {
                             Button(
-                                enabled = !loadingMore && !loading && catalogItems.isNotEmpty(),
+                                enabled = !loadingMore && !loading && !searching && catalogItems.isNotEmpty(),
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = {
                                     val addon = activeAddon ?: return@Button
