@@ -40,6 +40,7 @@ private val Accent = Color(0xFF8B5CF6)
 @Composable
 fun App() {
     val http = remember { createCinemaxHttpClient() }
+    DisposableEffect(http) { onDispose { http.close() } }
     val repository = remember { AddonRepository(http) }
     val addonStore = remember { AddonSettingsStore() }
     val preferencesStore = remember { CinemaxPreferencesStore() }
@@ -113,11 +114,13 @@ fun App() {
     }
 
     LaunchedEffect(Unit) {
+        val requestVersion = catalogRequestVersion
         val restoredAddon = activeAddon
         if (restoredAddon != null) {
             loading = true
             try {
                 val manifest = repository.loadManifest(restoredAddon.manifestUrl)
+                if (requestVersion != catalogRequestVersion) return@LaunchedEffect
                 availableCatalogs.clear()
                 availableCatalogs.addAll(manifest.catalogs)
                 val catalog = manifest.catalogs.firstOrNull()
@@ -126,16 +129,19 @@ fun App() {
                     activeCatalogId = catalog.id
                     activeCatalogSupportsSearch = catalog.extra.any { it.name == "search" }
                     activeCatalogSupportsSkip = catalog.extra.any { it.name == "skip" }
-                    catalogItems.addAll(repository.loadCatalog(restoredAddon.manifestUrl, catalog.type, catalog.id))
+                    val restoredItems = repository.loadCatalog(restoredAddon.manifestUrl, catalog.type, catalog.id)
+                    if (requestVersion != catalogRequestVersion) return@LaunchedEffect
+                    catalogItems.clear()
+                    catalogItems.addAll(restoredItems)
                     status = "تم استعادة ${restoredAddon.name} • ${catalogItems.size} عنصرًا"
                 } else {
                     status = "تم استعادة ${restoredAddon.name}؛ لا يوجد كتالوج معلن."
                 }
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
-                status = "تعذر استعادة الكتالوج: ${error.message ?: "خطأ غير معروف"}"
+                if (requestVersion == catalogRequestVersion) status = "تعذر استعادة الكتالوج: ${error.message ?: "خطأ غير معروف"}"
             } finally {
-                loading = false
+                if (requestVersion == catalogRequestVersion) loading = false
             }
         }
     }
@@ -151,6 +157,7 @@ fun App() {
         catalogItems.clear()
         selectedItem = null
         playbackUrl = null
+        playingItem = null
         streams.clear()
         searchQuery = ""
         loading = true
@@ -243,6 +250,11 @@ fun App() {
                                     activeAddon = null
                                     catalogItems.clear()
                                     selectedItem = null
+                                    playbackUrl = null
+                                    playingItem = null
+                                    availableCatalogs.clear()
+                                    streams.clear()
+                                    loading = false
                                     activeCatalogType = null
                                     activeCatalogId = null
                                     activeCatalogSupportsSearch = false
@@ -536,6 +548,7 @@ fun App() {
                                 activeAddon = installed
                                 selectedItem = null
                                 playbackUrl = null
+                                playingItem = null
                                 streams.clear()
                                 searchQuery = ""
                                 catalogItems.clear()
