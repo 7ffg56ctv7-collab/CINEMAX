@@ -52,7 +52,19 @@ actual fun NativeVideoPlayer(
         }
     }
     DisposableEffect(player) {
-        onDispose { player.pause() }
+        onDispose {
+            val positionSeconds = CMTimeGetSeconds(player.currentTime())
+            val durationSeconds = player.currentItem?.duration?.let { CMTimeGetSeconds(it) } ?: 0.0
+            if (positionSeconds.isFinite() && durationSeconds.isFinite() &&
+                positionSeconds > 0.0 && durationSeconds > 0.0
+            ) {
+                latestOnProgress.value(
+                    (positionSeconds * 1000.0).toLong(),
+                    (durationSeconds * 1000.0).toLong()
+                )
+            }
+            player.pause()
+        }
     }
     UIKitViewController(
         factory = {

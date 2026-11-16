@@ -264,7 +264,7 @@ fun App() {
                                     TextButton(
                                         onClick = {
                                             watchProgressStore.remove(progress.item)
-                                            watchProgressItems.removeAll { it.item.id == progress.item.id }
+                                            watchProgressItems.removeAll { MediaIdentity.storageKey(it.item.type, it.item.id, it.item.name, it.item.releaseInfo) == MediaIdentity.storageKey(progress.item.type, progress.item.id, progress.item.name, progress.item.releaseInfo) }
                                         },
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                                     ) { Text("×", color = Color.LightGray, fontSize = 16.sp) }
@@ -344,6 +344,7 @@ fun App() {
                                     catalogItems.addAll(results)
                                     status = "نتائج البحث: ${results.size}"
                                 } catch (error: Throwable) {
+                                    if (error is CancellationException) throw error
                                     status = "تعذر البحث: ${error.message ?: "خطأ غير معروف"}"
                                 } finally {
                                     searching = false
@@ -421,6 +422,7 @@ fun App() {
                                             catalogItems.addAll(nextPage)
                                             status = "تم تحميل ${nextPage.size} عنصر إضافي"
                                         } catch (error: Throwable) {
+                                            if (error is CancellationException) throw error
                                             status = "تعذر تحميل المزيد: ${error.message ?: "خطأ غير معروف"}"
                                         } finally {
                                             loadingMore = false

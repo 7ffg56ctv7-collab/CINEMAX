@@ -42,7 +42,14 @@ actual fun NativeVideoPlayer(
         }
     }
     DisposableEffect(player) {
-        onDispose { player.release() }
+        onDispose {
+            val position = player.currentPosition.coerceAtLeast(0L)
+            val duration = player.duration
+            if (position > 0L && duration > 0L && duration != C.TIME_UNSET) {
+                latestOnProgress.value(position, duration)
+            }
+            player.release()
+        }
     }
     AndroidView(
         factory = { viewContext ->
