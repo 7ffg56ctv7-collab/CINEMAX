@@ -22,6 +22,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14'
+      - name: Run common Kotlin tests
+        run: gradle :composeApp:iosSimulatorArm64Test
       - name: Install icon tooling
         run: |
           brew install xcodegen librsvg
