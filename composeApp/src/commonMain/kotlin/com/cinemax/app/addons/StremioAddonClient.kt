@@ -10,10 +10,11 @@ import io.ktor.http.encodeURLPathPart
  */
 object StremioAddonClient {
     fun manifestUrl(input: String): String? {
-        val value = input.trim().removeSuffix("/")
+        val value = input.trim().substringBefore('#').removeSuffix("/")
+        if (value.isBlank()) return null
         val parsed = try {
             Url(value)
-        } catch (_: Throwable) {
+        } catch (_: Exception) {
             return null
         }
         val secure = parsed.protocol.name == "https"
@@ -65,9 +66,11 @@ object StremioAddonClient {
     }
 
     fun isSafeMediaUrl(input: String): Boolean {
+        val value = input.trim()
+        if (value.isBlank() || value.contains('#')) return false
         val parsed = try {
-            Url(input.trim())
-        } catch (_: Throwable) {
+            Url(value)
+        } catch (_: Exception) {
             return false
         }
         val secure = parsed.protocol.name == "https"
