@@ -18,6 +18,11 @@ data class WatchProgress(
 ) {
     val progressFraction: Float
         get() = if (durationMillis > 0L) (positionMillis.toFloat() / durationMillis).coerceIn(0f, 1f) else 0f
+
+    /** Use a proportional completion window for short videos rather than always 15 seconds. */
+    val isComplete: Boolean
+        get() = durationMillis > 0L &&
+            positionMillis >= durationMillis - minOf(15_000L, (durationMillis / 4L).coerceAtLeast(1L))
 }
 
 /** Local continue-watching history, updated from the native player's real timeline. */
@@ -30,13 +35,15 @@ class WatchProgressStore(
         json.decodeFromString(ListSerializer(WatchProgress.serializer()), settings.getString(KEY, "[]"))
             .filter { it.positionMillis > 0L && it.durationMillis > 0L && it.positionMillis < it.durationMillis }
             .sortedByDescending { it.updatedAtEpochMillis }
+            .distinctBy { identityKey(it.item) }
+            .take(MAX_ITEMS)
     }.getOrDefault(emptyList())
 
     fun save(progress: WatchProgress) {
         if (progress.durationMillis <= 0L || progress.positionMillis < 0L) return
         val key = identityKey(progress.item)
         val current = load().filterNot { identityKey(it.item) == key }
-        val next = if (progress.positionMillis >= progress.durationMillis - 15_000L) current
+        val next = if (progress.isComplete) current
             else listOf(progress) + current
         settings.putString(KEY, json.encodeToString(ListSerializer(WatchProgress.serializer()), next.take(MAX_ITEMS)))
     }
