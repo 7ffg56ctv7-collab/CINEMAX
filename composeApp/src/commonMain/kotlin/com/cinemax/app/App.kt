@@ -72,7 +72,7 @@ fun App() {
     var playbackUrl by remember { mutableStateOf<String?>(null) }
     var playingItem by remember { mutableStateOf<StremioMetaPreview?>(null) }
 
-    LaunchedEffect(selectedItem?.id, selectedItem?.name, selectedItem?.releaseInfo, activeAddon?.id, addons.size) {
+    LaunchedEffect(selectedItem?.id, selectedItem?.type, selectedItem?.name, selectedItem?.releaseInfo, activeAddon?.id, activeAddon?.manifestUrl, addons.size) {
         val item = selectedItem
         val addon = activeAddon
         if (item != null && addon != null) {
@@ -645,6 +645,7 @@ fun App() {
             }
         }
         playbackUrl?.let { mediaUrl ->
+            val playbackItem = playingItem
             Dialog(onDismissRequest = { playbackUrl = null; playingItem = null }) {
                 Column(
                     modifier = Modifier.fillMaxWidth()
@@ -657,14 +658,15 @@ fun App() {
                         Spacer(Modifier.weight(1f))
                         TextButton(onClick = { playbackUrl = null; playingItem = null }) { Text("إغلاق") }
                     }
+                    key(mediaUrl, playbackItem?.type, playbackItem?.id) {
                     NativeVideoPlayer(
                         url = mediaUrl,
                         modifier = Modifier.fillMaxWidth().height(260.dp),
-                        initialPositionMillis = playingItem?.let { item ->
+                        initialPositionMillis = playbackItem?.let { item ->
                             watchProgressItems.firstOrNull { MediaIdentity.storageKey(it.item.type, it.item.id, it.item.name, it.item.releaseInfo) == MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo) }?.positionMillis ?: 0L
                         } ?: 0L,
                         onProgress = { positionMillis, durationMillis ->
-                            val item = playingItem
+                            val item = playbackItem
                             if (item != null && preferences.rememberPlaybackPosition) {
                                 val progress = WatchProgress(
                                     item = item,
@@ -678,6 +680,7 @@ fun App() {
                             }
                         }
                     )
+                    }
                 }
             }
         }
