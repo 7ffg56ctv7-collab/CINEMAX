@@ -88,7 +88,7 @@ class AddonRepository(
                             try {
                                 searchCatalog(addon.manifestUrl, catalog.type, catalog.id, selected.name)
                                     .forEach { candidates["${it.type}:${it.id}"] = it }
-                            } catch (error: Throwable) {
+                            } catch (error: Exception) {
                                 if (error is CancellationException) throw error
                                 // Continue with the catalog's normal first page if search is unavailable.
                             }
@@ -97,7 +97,7 @@ class AddonRepository(
                             // Keep first-page entries too: some addons advertise search but implement it poorly.
                             loadCatalog(addon.manifestUrl, catalog.type, catalog.id)
                                 .forEach { candidates["${it.type}:${it.id}"] = it }
-                        } catch (error: Throwable) {
+                        } catch (error: Exception) {
                             if (error is CancellationException) throw error
                         }
                         candidates.values.forEach { candidate ->
@@ -112,7 +112,7 @@ class AddonRepository(
                             }
                         }
                     }
-            } catch (error: Throwable) {
+            } catch (error: Exception) {
                 if (error is CancellationException) throw error
             }
         }
@@ -127,7 +127,7 @@ class AddonRepository(
                 loadStreams(addon.manifestUrl, media.type, media.id).map { stream ->
                     stream.copy(name = "${addon.name} • ${stream.name ?: stream.title ?: "مصدر"}")
                 }
-            } catch (error: Throwable) {
+            } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 emptyList()
             }
