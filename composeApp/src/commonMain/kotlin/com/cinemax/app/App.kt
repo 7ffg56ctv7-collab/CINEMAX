@@ -29,6 +29,8 @@ import com.cinemax.app.addons.StremioMetaPreview
 import com.cinemax.app.addons.StremioStream
 import com.cinemax.app.addons.createCinemaxHttpClient
 import com.cinemax.app.core.MediaIdentity
+import com.cinemax.app.core.CatalogSort
+import com.cinemax.app.core.DiscoveryPresentation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -50,6 +52,10 @@ fun App() {
     val watchProgressStore = remember { WatchProgressStore() }
     val watchProgressItems = remember { mutableStateListOf<WatchProgress>().apply { addAll(watchProgressStore.load()) } }
     var showFavoritesOnly by remember { mutableStateOf(false) }
+    var localFilterQuery by remember { mutableStateOf("") }
+    var mediaTypeFilter by remember { mutableStateOf<String?>(null) }
+    var catalogSort by remember { mutableStateOf(CatalogSort.Source) }
+    var playableSourcesOnly by remember { mutableStateOf(false) }
     var preferences by remember { mutableStateOf(preferencesStore.load()) }
     var showSettings by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -73,14 +79,17 @@ fun App() {
     var status by remember { mutableStateOf("أضف إضافة Stremio متوافقة للبدء") }
     var loading by remember { mutableStateOf(false) }
     var loadingStreams by remember { mutableStateOf(false) }
+    var streamsError by remember { mutableStateOf<String?>(null) }
+    var streamsRefreshVersion by remember { mutableIntStateOf(0) }
     var playbackUrl by remember { mutableStateOf<String?>(null) }
     var playingItem by remember { mutableStateOf<StremioMetaPreview?>(null) }
 
-    LaunchedEffect(selectedItem?.id, selectedItem?.type, selectedItem?.name, selectedItem?.releaseInfo, activeAddon?.id, activeAddon?.manifestUrl, addons.toList()) {
+    LaunchedEffect(selectedItem?.id, selectedItem?.type, selectedItem?.name, selectedItem?.releaseInfo, activeAddon?.id, activeAddon?.manifestUrl, addons.toList(), streamsRefreshVersion) {
         val item = selectedItem
         val addon = activeAddon
         if (item != null && addon != null) {
             loadingStreams = true
+            streamsError = null
             streams.clear()
             selectedMeta = null
             try {
@@ -108,13 +117,14 @@ fun App() {
                 streams.addAll(repository.loadStreamsAcrossAddons(addons.toList(), item, addon.id))
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
-                status = "تعذر جلب مصادر المشاهدة: ${error.message ?: "خطأ غير معروف"}"
+                streamsError = "تعذر جلب مصادر المشاهدة: ${error.message ?: "خطأ غير معروف"}"
             } finally {
                 loadingStreams = false
             }
         } else {
             streams.clear()
             selectedMeta = null
+            streamsError = null
             loadingStreams = false
         }
     }
@@ -290,6 +300,19 @@ fun App() {
                 Spacer(Modifier.width(6.dp))
                 FilterChip(selected = showFavoritesOnly, onClick = { showFavoritesOnly = true }, label = { Text("قائمتي ★") })
             }
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(selected = mediaTypeFilter == null, onClick = { mediaTypeFilter = null }, label = { Text("كل الأنواع") })
+                FilterChip(selected = mediaTypeFilter == "movie", onClick = { mediaTypeFilter = "movie" }, label = { Text("أفلام") })
+                FilterChip(selected = mediaTypeFilter == "series", onClick = { mediaTypeFilter = "series" }, label = { Text("مسلسلات") })
+            }
+            OutlinedTextField(value = localFilterQuery, onValueChange = { localFilterQuery = it.take(100) },
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                label = { Text(if (showFavoritesOnly) "بحث داخل قائمتي" else "تصفية العناوين المعروضة") })
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(selected = catalogSort == CatalogSort.Source, onClick = { catalogSort = CatalogSort.Source }, label = { Text("ترتيب المصدر") })
+                FilterChip(selected = catalogSort == CatalogSort.Title, onClick = { catalogSort = CatalogSort.Title }, label = { Text("حسب الاسم") })
+                FilterChip(selected = catalogSort == CatalogSort.Newest, onClick = { catalogSort = CatalogSort.Newest }, label = { Text("الأحدث") })
+            }
             if (watchProgressItems.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 Text("تابع المشاهدة", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
@@ -363,7 +386,34 @@ fun App() {
                 }
             }
             Spacer(Modifier.height(8.dp))
-            if (activeAddon != null && activeCatalogType != null && activeCatalogId != null && activeCatalogSupportsSearch) {
+            if (activeAddon != null && activeCatalogType != null && activeCatalogId != null && !showFavoritesOnly) {
+                TextButton(enabled = !loading && !searching && !loadingMore, onClick = {
+                    val addon = activeAddon ?: return@TextButton
+                    val type = activeCatalogType ?: return@TextButton
+                    val id = activeCatalogId ?: return@TextButton
+                    catalogRequestVersion++
+                    val requestVersion = catalogRequestVersion
+                    searching = false
+                    loadingMore = false
+                    searchQuery = ""
+                    loading = true
+                    scope.launch {
+                        try {
+                            val items = repository.loadCatalog(addon.manifestUrl, type, id)
+                            if (requestVersion != catalogRequestVersion) return@launch
+                            catalogItems.clear()
+                            catalogItems.addAll(items)
+                            status = "تم تحديث الكتالوج • " + items.size + " عنصرًا"
+                        } catch (error: Exception) {
+                            if (error is CancellationException) throw error
+                            if (requestVersion == catalogRequestVersion) status = "تعذر تحديث الكتالوج: " + (error.message ?: "خطأ غير معروف")
+                        } finally {
+                            if (requestVersion == catalogRequestVersion) loading = false
+                        }
+                    }
+                }) { Text("↻ تحديث الكتالوج") }
+            }
+            if (activeAddon != null && activeCatalogType != null && activeCatalogId != null && activeCatalogSupportsSearch && !showFavoritesOnly) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -411,9 +461,13 @@ fun App() {
                 }
                 Spacer(Modifier.height(8.dp))
             }
-            val visibleItems = if (showFavoritesOnly) favoriteItems.toList() else catalogItems.toList()
+            val visibleItems = DiscoveryPresentation.visible(
+                if (showFavoritesOnly) favoriteItems.toList() else catalogItems.toList(),
+                mediaTypeFilter, localFilterQuery, catalogSort
+            )
             if (visibleItems.isEmpty()) {
-                Text(if (showFavoritesOnly) "قائمتك فارغة حاليًا. افتح تفاصيل أي عنوان وأضفه إلى قائمتك." else "ستظهر عناصر الكتالوج هنا بعد تثبيت إضافة توفر كتالوجًا.", color = Color.LightGray, fontSize = 13.sp)
+                val hasUnfilteredItems = if (showFavoritesOnly) favoriteItems.isNotEmpty() else catalogItems.isNotEmpty()
+                Text(if (hasUnfilteredItems) "لا توجد نتائج تطابق التصفية الحالية." else if (showFavoritesOnly) "قائمتك فارغة حاليًا. افتح تفاصيل أي عنوان وأضفه إلى قائمتك." else "ستظهر عناصر الكتالوج هنا بعد تثبيت إضافة توفر كتالوجًا.", color = Color.LightGray, fontSize = 13.sp)
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
@@ -547,14 +601,15 @@ fun App() {
                 confirmButton = {
                     Button(enabled = addonUrl.isNotBlank() && !loading, onClick = {
                         val input = addonUrl.trim()
+                        catalogRequestVersion++
+                        val installRequestVersion = catalogRequestVersion
                         showAddDialog = false
                         loading = true
                         status = "جارٍ التحقق من الإضافة..."
                         scope.launch {
                             try {
                                 val manifest = repository.loadManifest(input)
-                                catalogRequestVersion++
-                                val requestVersion = catalogRequestVersion
+                                if (installRequestVersion != catalogRequestVersion) return@launch
                                 availableCatalogs.clear()
                                 availableCatalogs.addAll(manifest.catalogs)
                                 val normalized = com.cinemax.app.addons.StremioAddonClient.manifestUrl(input)!!
@@ -566,11 +621,11 @@ fun App() {
                                 addons.removeAll { it.id == installed.id }
                                 addons.add(installed)
                                 addonStore.save(addons.toList())
-                                catalogRequestVersion++
                                 searching = false
                                 loadingMore = false
                                 activeAddon = installed
                                 selectedItem = null
+                                selectedMeta = null
                                 playbackUrl = null
                                 playingItem = null
                                 streams.clear()
@@ -582,10 +637,15 @@ fun App() {
                                     activeCatalogId = catalog.id
                                     activeCatalogSupportsSearch = catalog.extra.any { it.name == "search" }
                                     activeCatalogSupportsSkip = catalog.extra.any { it.name == "skip" }
-                                    val loaded = repository.loadCatalog(normalized, catalog.type, catalog.id)
-                                    if (requestVersion != catalogRequestVersion) return@launch
-                                    catalogItems.addAll(loaded)
-                                    status = "تم تثبيت ${manifest.name} وجلب ${loaded.size} عنصرًا"
+                                    try {
+                                        val loaded = repository.loadCatalog(normalized, catalog.type, catalog.id)
+                                        if (installRequestVersion != catalogRequestVersion) return@launch
+                                        catalogItems.addAll(loaded)
+                                        status = "تم تثبيت المصدر وجلب " + loaded.size + " عنصرًا"
+                                    } catch (error: Exception) {
+                                        if (error is CancellationException) throw error
+                                        if (installRequestVersion == catalogRequestVersion) status = "تم تثبيت المصدر لكن تعذر جلب الكتالوج: " + (error.message ?: "خطأ غير معروف")
+                                    }
                                 } else {
                                     activeCatalogType = null
                                     activeCatalogId = null
@@ -593,12 +653,12 @@ fun App() {
                                     activeCatalogSupportsSkip = false
                                     status = "تم تثبيت ${manifest.name}، ولا تعلن الإضافة عن كتالوج."
                                 }
-                                if (requestVersion == catalogRequestVersion) addonUrl = ""
+                                if (installRequestVersion == catalogRequestVersion) addonUrl = ""
                             } catch (error: Exception) {
                                 if (error is CancellationException) throw error
-                                status = "تعذر تحميل الإضافة: ${error.message ?: "خطأ غير معروف"}"
+                                if (installRequestVersion == catalogRequestVersion) status = "تعذر تحميل الإضافة: ${error.message ?: "خطأ غير معروف"}"
                             } finally {
-                                loading = false
+                                if (installRequestVersion == catalogRequestVersion) loading = false
                             }
                         }
                     }) { Text("تحقق وأضف") }
@@ -664,19 +724,32 @@ fun App() {
                     }
                     Divider(color = Color.DarkGray)
                     Text("مصادر المشاهدة", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    if (streamsError != null) {
+                        Text(streamsError.orEmpty(), color = Color(0xFFFFB4AB), fontSize = 12.sp)
+                        TextButton(onClick = { streamsRefreshVersion++ }) { Text("↻ إعادة جلب المصادر") }
+                    }
                     if (loadingStreams) {
                         LinearProgressIndicator(Modifier.fillMaxWidth())
                         Text("جارٍ جلب المصادر...", color = Color.LightGray)
                     } else if (streams.isEmpty()) {
                         Text("لم تُرجع الإضافة مصادر لهذا العنوان.", color = Color.LightGray, fontSize = 13.sp)
                     } else {
-                        streams.forEachIndexed { index, stream ->
+                        FilterChip(selected = playableSourcesOnly, onClick = { playableSourcesOnly = !playableSourcesOnly },
+                            label = { Text("المصادر القابلة للتشغيل فقط") })
+                        val visibleStreams = DiscoveryPresentation.sortedStreams(streams.toList(), playableSourcesOnly)
+                        if (visibleStreams.isEmpty()) {
+                            Text("لا تتوفر روابط تشغيل مباشرة آمنة حاليًا.", color = Color.LightGray, fontSize = 12.sp)
+                        }
+                        visibleStreams.forEachIndexed { index, stream ->
                             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
                                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                     Text("${index + 1}. ${stream.name ?: stream.title ?: "مصدر"}", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                    DiscoveryPresentation.qualityLabel(stream)?.let { quality ->
+                                        Text("الجودة: " + quality, color = appAccent, fontSize = 12.sp)
+                                    }
                                     stream.title?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
                                     stream.url?.let { mediaUrl ->
-                                        Button(onClick = {
+                                        Button(enabled = DiscoveryPresentation.isPlayable(stream), onClick = {
                                             if (com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl(mediaUrl)) {
                                                 val meta = selectedMeta
                                                 playingItem = selected.copy(
@@ -690,6 +763,7 @@ fun App() {
                                                 playbackUrl = mediaUrl
                                             } else status = "تم رفض رابط تشغيل غير آمن. يجب أن يستخدم HTTPS."
                                         }, modifier = Modifier.fillMaxWidth()) { Text("▶ تشغيل") }
+                                        if (!DiscoveryPresentation.isPlayable(stream)) Text("رابط التشغيل غير آمن أو غير مدعوم.", color = Color.Gray, fontSize = 11.sp)
                                     } ?: Text("هذا المصدر لا يحتوي على رابط مباشر قابل للتشغيل هنا.", color = Color.Gray, fontSize = 11.sp)
                                 }
                             }
