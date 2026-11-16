@@ -30,7 +30,7 @@ actual fun NativeVideoPlayer(
     initialPositionMillis: Long,
     onProgress: (positionMillis: Long, durationMillis: Long) -> Unit
 ) {
-    val latestOnProgress by rememberUpdatedState(onProgress)
+    val latestOnProgress = rememberUpdatedState(onProgress)
     val player = remember(url) {
         AVPlayer(uRL = NSURL(string = url)).apply {
             if (initialPositionMillis > 0L) {
@@ -46,7 +46,7 @@ actual fun NativeVideoPlayer(
             if (positionSeconds.isFinite() && durationSeconds.isFinite() &&
                 positionSeconds > 0.0 && durationSeconds > 0.0
             ) {
-                latestOnProgress((positionSeconds * 1000.0).toLong(), (durationSeconds * 1000.0).toLong())
+                latestOnProgress.value((positionSeconds * 1000.0).toLong(), (durationSeconds * 1000.0).toLong())
             }
             delay(5_000L)
         }

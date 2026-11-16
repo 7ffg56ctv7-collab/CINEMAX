@@ -22,7 +22,7 @@ actual fun NativeVideoPlayer(
     onProgress: (positionMillis: Long, durationMillis: Long) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val latestOnProgress by rememberUpdatedState(onProgress)
+    val latestOnProgress = rememberUpdatedState(onProgress)
     val player = remember(url) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(url))
@@ -36,7 +36,7 @@ actual fun NativeVideoPlayer(
             val position = player.currentPosition.coerceAtLeast(0L)
             val duration = player.duration
             if (position > 0L && duration > 0L && duration != C.TIME_UNSET) {
-                latestOnProgress(position, duration)
+                latestOnProgress.value(position, duration)
             }
             delay(5_000L)
         }
