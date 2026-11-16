@@ -50,6 +50,23 @@ class WatchProgressStoreTest {
     }
 
     @Test
+    fun shortVideoCanResumeBeforeProportionalCompletionWindow() {
+        val store = WatchProgressStore(MapSettings())
+        val item = StremioMetaPreview("short-1", "movie", "Short clip")
+        store.save(WatchProgress(item, 10_000L, 20_000L, 1L))
+        assertEquals(10_000L, store.load().single().positionMillis)
+        store.save(WatchProgress(item, 18_000L, 20_000L, 2L))
+        assertTrue(store.load().isEmpty())
+    }
+
+    @Test
+    fun completionRuleMatchesUIHistoryLogic() {
+        val item = StremioMetaPreview("short-2", "movie", "Short clip")
+        assertTrue(WatchProgress(item, 95_000L, 100_000L, 1L).isComplete)
+        assertTrue(!WatchProgress(item, 10_000L, 20_000L, 1L).isComplete)
+    }
+
+    @Test
     fun invalidStoredDataFallsBackToEmptyProgress() {
         val settings = MapSettings()
         settings.putString("cinemax.watch.progress.v1", "not-json")
