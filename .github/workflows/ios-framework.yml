@@ -83,6 +83,17 @@ jobs:
           test -n "$DEVICE_APP"
           ditto -c -k --sequesterRsrc --keepParent "$SIM_APP" build/RAIF-iOS-Simulator.zip
           ditto -c -k --sequesterRsrc --keepParent "$DEVICE_APP" build/RAIF-iOS-Device-Unsigned.zip
+          # Reject development-only Swift dylibs and validate device executable.
+          if find "$DEVICE_APP" -type f \( -name '*.debug.dylib' -o -name '__preview.dylib' \) | grep -q .; then
+            echo "Development dylibs detected in release app" >&2
+            exit 1
+          fi
+          APP_EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$DEVICE_APP/Info.plist")
+          test -f "$DEVICE_APP/$APP_EXECUTABLE"
+          file "$DEVICE_APP/$APP_EXECUTABLE" | grep -q 'Mach-O'
+          /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$DEVICE_APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$DEVICE_APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$DEVICE_APP/Info.plist"
           mkdir -p build/ipa/Payload
           ditto "$DEVICE_APP" build/ipa/Payload/RAIF.app
           (cd build/ipa && zip -q -r ../RAIF-iPhone-Unsigned.ipa Payload)
