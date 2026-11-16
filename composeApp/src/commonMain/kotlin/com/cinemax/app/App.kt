@@ -76,7 +76,7 @@ fun App() {
     var playbackUrl by remember { mutableStateOf<String?>(null) }
     var playingItem by remember { mutableStateOf<StremioMetaPreview?>(null) }
 
-    LaunchedEffect(selectedItem?.id, selectedItem?.type, selectedItem?.name, selectedItem?.releaseInfo, activeAddon?.id, activeAddon?.manifestUrl, addons.size) {
+    LaunchedEffect(selectedItem?.id, selectedItem?.type, selectedItem?.name, selectedItem?.releaseInfo, activeAddon?.id, activeAddon?.manifestUrl, addons.toList()) {
         val item = selectedItem
         val addon = activeAddon
         if (item != null && addon != null) {
@@ -84,7 +84,13 @@ fun App() {
             streams.clear()
             selectedMeta = null
             try {
-                selectedMeta = repository.loadMeta(addon.manifestUrl, item.type, item.id)
+                selectedMeta = try {
+                    repository.loadMeta(addon.manifestUrl, item.type, item.id)
+                } catch (error: Exception) {
+                    if (error is CancellationException) throw error
+                    status = "تعذر تحميل بيانات العنوان؛ سأحاول جلب مصادر المشاهدة."
+                    null
+                }
                 selectedMeta?.let { meta ->
                     val itemKey = MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
                     val index = favoriteItems.indexOfFirst { MediaIdentity.storageKey(it.type, it.id, it.name, it.releaseInfo) == itemKey }
@@ -102,7 +108,7 @@ fun App() {
                 streams.addAll(repository.loadStreamsAcrossAddons(addons.toList(), item, addon.id))
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
-                status = "تعذر جلب تفاصيل العنصر أو مصادره: ${error.message ?: "خطأ غير معروف"}"
+                status = "تعذر جلب مصادر المشاهدة: ${error.message ?: "خطأ غير معروف"}"
             } finally {
                 loadingStreams = false
             }
@@ -725,7 +731,7 @@ fun App() {
                                 )
                                 watchProgressStore.save(progress)
                                 watchProgressItems.removeAll { MediaIdentity.storageKey(it.item.type, it.item.id, it.item.name, it.item.releaseInfo) == MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo) }
-                                if (positionMillis < durationMillis - 15_000L) watchProgressItems.add(0, progress)
+                                if (!progress.isComplete) watchProgressItems.add(0, progress)
                             }
                         }
                     )
