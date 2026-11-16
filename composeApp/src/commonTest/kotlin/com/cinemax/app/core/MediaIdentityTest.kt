@@ -3,6 +3,8 @@ package com.cinemax.app.core
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class MediaIdentityTest {
     @Test
