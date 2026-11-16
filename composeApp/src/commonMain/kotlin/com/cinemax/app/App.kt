@@ -314,6 +314,9 @@ fun App() {
                                 val addon = activeAddon ?: return@FilterChip
                                 selectedItem = null
                                 playbackUrl = null
+                                playingItem = null
+                                streams.clear()
+                                selectedMeta = null
                                 activeCatalogType = catalog.type
                                 activeCatalogId = catalog.id
                                 activeCatalogSupportsSearch = catalog.extra.any { it.name == "search" }
@@ -367,6 +370,7 @@ fun App() {
                             catalogRequestVersion++
                             val requestVersion = catalogRequestVersion
                             val submittedQuery = searchQuery.trim()
+                            loadingMore = false
                             searching = true
                             scope.launch {
                                 try {
@@ -441,13 +445,15 @@ fun App() {
                                     val catalogId = activeCatalogId ?: return@Button
                                     val requestVersion = catalogRequestVersion
                                     val nextOffset = catalogItems.size
+                                    val submittedQuery = searchQuery.trim()
+                                    val supportsSearch = activeCatalogSupportsSearch
                                     loadingMore = true
                                     scope.launch {
                                         try {
-                                            val nextPage = if (searchQuery.isNotBlank() && activeCatalogSupportsSearch) {
+                                            val nextPage = if (submittedQuery.isNotBlank() && supportsSearch) {
                                                 repository.searchCatalog(
                                                     addon.manifestUrl, type, catalogId,
-                                                    searchQuery, skip = nextOffset
+                                                    submittedQuery, skip = nextOffset
                                                 )
                                             } else {
                                                 repository.loadCatalog(
@@ -457,8 +463,9 @@ fun App() {
                                             }
                                             if (requestVersion != catalogRequestVersion) return@launch
                                             val existingIds = catalogItems.map { "${it.type}:${it.id}" }.toSet()
-                                            catalogItems.addAll(nextPage.distinctBy { "${it.type}:${it.id}" }.filterNot { "${it.type}:${it.id}" in existingIds })
-                                            status = "تم تحميل ${nextPage.size} عنصر إضافي"
+                                            val newItems = nextPage.distinctBy { "${it.type}:${it.id}" }.filterNot { "${it.type}:${it.id}" in existingIds }
+                                            catalogItems.addAll(newItems)
+                                            status = "تم تحميل ${newItems.size} عنصر إضافي"
                                         } catch (error: Exception) {
                                             if (error is CancellationException) throw error
                                             if (requestVersion == catalogRequestVersion) status = "تعذر تحميل المزيد: ${error.message ?: "خطأ غير معروف"}"
@@ -531,6 +538,8 @@ fun App() {
                         scope.launch {
                             try {
                                 val manifest = repository.loadManifest(input)
+                                catalogRequestVersion++
+                                val requestVersion = catalogRequestVersion
                                 availableCatalogs.clear()
                                 availableCatalogs.addAll(manifest.catalogs)
                                 val normalized = com.cinemax.app.addons.StremioAddonClient.manifestUrl(input)!!
@@ -559,6 +568,7 @@ fun App() {
                                     activeCatalogSupportsSearch = catalog.extra.any { it.name == "search" }
                                     activeCatalogSupportsSkip = catalog.extra.any { it.name == "skip" }
                                     val loaded = repository.loadCatalog(normalized, catalog.type, catalog.id)
+                                    if (requestVersion != catalogRequestVersion) return@launch
                                     catalogItems.addAll(loaded)
                                     status = "تم تثبيت ${manifest.name} وجلب ${loaded.size} عنصرًا"
                                 } else {
@@ -568,10 +578,10 @@ fun App() {
                                     activeCatalogSupportsSkip = false
                                     status = "تم تثبيت ${manifest.name}، ولا تعلن الإضافة عن كتالوج."
                                 }
-                                addonUrl = ""
+                                if (requestVersion == catalogRequestVersion) addonUrl = ""
                             } catch (error: Exception) {
                                 if (error is CancellationException) throw error
-                                status = "تعذر تثبيت الإضافة: ${error.message ?: "خطأ غير معروف"}"
+                                status = "تعذر تحميل الإضافة: ${error.message ?: "خطأ غير معروف"}"
                             } finally {
                                 loading = false
                             }
