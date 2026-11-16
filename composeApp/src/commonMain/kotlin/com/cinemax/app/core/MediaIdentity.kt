@@ -50,19 +50,22 @@ object MediaIdentity {
         return match.groupValues[1]
     }
 
-    private fun normalizeTitle(value: String): String =
-        value.trim()
-            .lowercase()
-            .replace(ARABIC_DIACRITICS_REGEX, "")
-            .replace("ـ", "")
-            .replace(TITLE_PUNCTUATION_REGEX, " ")
-            .replace(WHITESPACE_REGEX, " ")
-            .trim()
+    /**
+     * Avoid Unicode character-class regexes here: Kotlin/Native's regex engine does not
+     * support the same property escapes on every target. Char classification is portable.
+     */
+    private fun normalizeTitle(value: String): String = buildString {
+        value.trim().lowercase().forEach { char ->
+            when {
+                char in '\u064B'..'\u065F' || char == '\u0670' || char == 'ـ' -> Unit
+                char.isLetterOrDigit() -> append(char)
+                else -> append(' ')
+            }
+        }
+    }.split(WHITESPACE_REGEX).filter { it.isNotEmpty() }.joinToString(" ")
 
     private val IMDB_REGEX = Regex("tt[0-9]{7,10}")
     private val TMDB_REGEX = Regex("(?:tmdb|themoviedb)[:/_-]?([0-9]{1,12})")
     private val YEAR_REGEX = Regex("(?:19|20)[0-9]{2}")
-    private val ARABIC_DIACRITICS_REGEX = Regex("[\\u064B-\\u065F\\u0670]")
-    private val TITLE_PUNCTUATION_REGEX = Regex("[^\\p{L}\\p{N}]+")
     private val WHITESPACE_REGEX = Regex("\\s+")
 }
