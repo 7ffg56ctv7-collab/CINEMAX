@@ -104,4 +104,23 @@ class StremioAddonClientSecurityTest {
         assertFalse(com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl("https://user:pass@cdn.example.org/video.mp4"))
         assertFalse(com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl("javascript:alert(1)"))
     }
+
+    @Test
+    fun stripsManifestFragmentBeforeBuildingUrl() {
+        assertEquals(
+            "https://addons.example.org/manifest.json",
+            com.cinemax.app.addons.StremioAddonClient.manifestUrl("https://addons.example.org/#ignored")
+        )
+    }
+
+    @Test
+    fun rejectsFragmentInPlaybackUrl() {
+        assertFalse(com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl("https://cdn.example.org/video.mp4#fragment"))
+    }
+
+    @Test
+    fun rejectsEmptyManifestAndMediaUrls() {
+        assertNull(com.cinemax.app.addons.StremioAddonClient.manifestUrl("   "))
+        assertFalse(com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl("   "))
+    }
 }
