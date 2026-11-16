@@ -63,6 +63,57 @@ class MediaIdentityTest {
             MediaIdentity.key(type = "movie", id = "tt1234567", title = "Different label", releaseInfo = "2020")
         )
     }
+
+    @Test
+    fun acceptsImdbPrefix() {
+        assertEquals("movie:imdb:tt1234567", MediaIdentity.key(type = "movie", imdbId = "IMDb:TT1234567"))
+    }
+
+    @Test
+    fun removesTmdbLeadingZeros() {
+        assertEquals(MediaIdentity.key(type = "movie", tmdbId = "tmdb:00042"), MediaIdentity.key(type = "movie", tmdbId = "tmdb:42"))
+    }
+
+    @Test
+    fun normalizesArabicHamza() {
+        assertEquals(MediaIdentity.key(type = "movie", title = "أمل", releaseInfo = "2020"), MediaIdentity.key(type = "movie", title = "امل", releaseInfo = "2020"))
+    }
+
+    @Test
+    fun normalizesArabicAlefMaqsura() {
+        assertEquals(MediaIdentity.key(type = "movie", title = "ليلى", releaseInfo = "2020"), MediaIdentity.key(type = "movie", title = "ليلي", releaseInfo = "2020"))
+    }
+
+    @Test
+    fun acceptsReleaseYearInTitle() {
+        assertEquals(MediaIdentity.key(type = "movie", title = "Dune", releaseInfo = "2021"), MediaIdentity.key(type = "movie", title = "Dune (2021)"))
+    }
+
+    @Test
+    fun movieAliasesShareIdentity() {
+        assertEquals(MediaIdentity.key(type = "film", title = "Dune", releaseInfo = "2021"), MediaIdentity.key(type = "movie", title = "Dune", releaseInfo = "2021"))
+    }
+
+    @Test
+    fun seriesAliasesShareIdentity() {
+        assertEquals(MediaIdentity.key(type = "tv", title = "Lost", releaseInfo = "2004"), MediaIdentity.key(type = "series", title = "Lost", releaseInfo = "2004"))
+    }
+
+    @Test
+    fun refusesNumericOnlyTitle() {
+        assertNull(MediaIdentity.key(type = "movie", title = "2021"))
+    }
+
+    @Test
+    fun normalizesArabicDiacritics() {
+        assertEquals(MediaIdentity.key(type = "movie", title = "السَلام", releaseInfo = "2020"), MediaIdentity.key(type = "movie", title = "السلام", releaseInfo = "2020"))
+    }
+
+    @Test
+    fun distinctReleaseYearsRemainDistinct() {
+        kotlin.test.assertNotEquals(MediaIdentity.key(type = "movie", title = "Dune", releaseInfo = "1984"), MediaIdentity.key(type = "movie", title = "Dune", releaseInfo = "2021"))
+    }
+
     @Test
     fun refusesEmptyType() {
         assertNull(MediaIdentity.key(type = "movie", title = "Dune", releaseInfo = "2021").let {
