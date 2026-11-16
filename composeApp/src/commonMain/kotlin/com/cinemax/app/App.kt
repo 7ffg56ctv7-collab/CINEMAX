@@ -98,7 +98,7 @@ fun App() {
                     }
                 }
                 streams.addAll(repository.loadStreamsAcrossAddons(addons.toList(), item, addon.id))
-            } catch (error: Throwable) {
+            } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 status = "تعذر جلب تفاصيل العنصر أو مصادره: ${error.message ?: "خطأ غير معروف"}"
             } finally {
@@ -130,7 +130,7 @@ fun App() {
                 } else {
                     status = "تم استعادة ${restoredAddon.name}؛ لا يوجد كتالوج معلن."
                 }
-            } catch (error: Throwable) {
+            } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 status = "تعذر استعادة الكتالوج: ${error.message ?: "خطأ غير معروف"}"
             } finally {
@@ -169,7 +169,7 @@ fun App() {
                     catalogItems.addAll(loaded)
                     status = "المصدر النشط: ${addon.name} • ${loaded.size} عنصرًا"
                 }
-            } catch (error: Throwable) {
+            } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 status = "تعذر فتح ${addon.name}: ${error.message ?: "خطأ غير معروف"}"
             } finally {
@@ -303,7 +303,7 @@ fun App() {
                                         val items = repository.loadCatalog(addon.manifestUrl, catalog.type, catalog.id)
                                         catalogItems.addAll(items)
                                         status = "تم تحميل ${catalog.name ?: catalog.id} • ${items.size} عنصرًا"
-                                    } catch (error: Throwable) {
+                                    } catch (error: Exception) {
                                         if (error is CancellationException) throw error
                                         status = "تعذر تحميل الكتالوج: ${error.message ?: "خطأ غير معروف"}"
                                     } finally {
@@ -345,7 +345,7 @@ fun App() {
                                     catalogItems.clear()
                                     catalogItems.addAll(results)
                                     status = "نتائج البحث: ${results.size}"
-                                } catch (error: Throwable) {
+                                } catch (error: Exception) {
                                     if (error is CancellationException) throw error
                                     status = "تعذر البحث: ${error.message ?: "خطأ غير معروف"}"
                                 } finally {
@@ -423,7 +423,7 @@ fun App() {
                                             }
                                             catalogItems.addAll(nextPage)
                                             status = "تم تحميل ${nextPage.size} عنصر إضافي"
-                                        } catch (error: Throwable) {
+                                        } catch (error: Exception) {
                                             if (error is CancellationException) throw error
                                             status = "تعذر تحميل المزيد: ${error.message ?: "خطأ غير معروف"}"
                                         } finally {
@@ -529,7 +529,7 @@ fun App() {
                                     status = "تم تثبيت ${manifest.name}، ولا تعلن الإضافة عن كتالوج."
                                 }
                                 addonUrl = ""
-                            } catch (error: Throwable) {
+                            } catch (error: Exception) {
                                 if (error is CancellationException) throw error
                                 status = "تعذر تثبيت الإضافة: ${error.message ?: "خطأ غير معروف"}"
                             } finally {
