@@ -6,6 +6,7 @@ import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.Json
 import com.cinemax.app.core.MediaIdentity
 import kotlinx.coroutines.CancellationException
+import io.ktor.http.isSuccess
 
 /**
  * Small, testable HTTP repository for remote Stremio-compatible addons.
@@ -19,6 +20,7 @@ class AddonRepository(
         val url = StremioAddonClient.manifestUrl(input)
             ?: throw IllegalArgumentException("رابط الإضافة يجب أن يبدأ بـ https://")
         val response = http.get(url)
+        require(response.status.isSuccess()) { "Addon manifest request failed: ${response.status.value}" }
         return json.decodeFromString(response.bodyAsText())
     }
 
@@ -31,7 +33,10 @@ class AddonRepository(
         val base = validatedBase(manifestUrl)
         val url = StremioAddonClient.resourceUrl(base, "catalog", type, catalogId, extra)
         val response = http.get(url)
+        require(response.status.isSuccess()) { "Addon catalog request failed: ${response.status.value}" }
         return json.decodeFromString<StremioCatalogResponse>(response.bodyAsText()).metas
+            .filter { it.id.isNotBlank() && it.type.isNotBlank() && it.name.isNotBlank() }
+            .distinctBy { "${it.type.lowercase()}:${it.id}" }
     }
 
     suspend fun searchCatalog(
@@ -53,13 +58,16 @@ class AddonRepository(
     suspend fun loadMeta(manifestUrl: String, type: String, mediaId: String): StremioMeta? {
         val url = StremioAddonClient.resourceUrl(validatedBase(manifestUrl), "meta", type, mediaId)
         val response = http.get(url)
+        require(response.status.isSuccess()) { "Addon metadata request failed: ${response.status.value}" }
         return json.decodeFromString<StremioMetaResponse>(response.bodyAsText()).meta
     }
 
     suspend fun loadStreams(manifestUrl: String, type: String, mediaId: String): List<StremioStream> {
         val url = StremioAddonClient.resourceUrl(validatedBase(manifestUrl), "stream", type, mediaId)
         val response = http.get(url)
+        require(response.status.isSuccess()) { "Addon streams request failed: ${response.status.value}" }
         return json.decodeFromString<StremioStreamResponse>(response.bodyAsText()).streams
+            .filter { it.url == null || StremioAddonClient.isSafeMediaUrl(it.url) }
     }
 
     /**
@@ -132,13 +140,34 @@ class AddonRepository(
                 emptyList()
             }
         }
-        // Multiple addons can expose the same direct media URL.
-        val seenUrls = mutableSetOf<String>()
-        return collected.filter { stream ->
+        // Prefer reliable direct HTTPS streams over unresolved torrent-only entries.
+        val ranked = collected
+            .filter { it.url == null || StremioAddonClient.isSafeMediaUrl(it.url) }
+            .sortedWith(compareByDescending<StremioStream> { it.url?.startsWith("https://", ignoreCase = true) == true }
+                .thenByDescending { streamQuality(it) })
+        val seen = mutableSetOf<String>()
+        return ranked.filter { stream ->
             val url = stream.url?.trim()
-            url.isNullOrEmpty() || seenUrls.add(url)
+            val hash = stream.infoHash?.trim()?.lowercase()
+            val identity = when {
+                !url.isNullOrEmpty() -> "url:$url"
+                !hash.isNullOrEmpty() -> "torrent:$hash:${stream.fileIdx ?: 0}"
+                else -> "opaque:${stream.name}:${stream.title}"
+            }
+            seen.add(identity)
         }
     }
+    private fun streamQuality(stream: StremioStream): Int {
+        val label = "${stream.name.orEmpty()} ${stream.title.orEmpty()}".lowercase()
+        return when {
+            "2160p" in label || "4k" in label -> 4
+            "1080p" in label -> 3
+            "720p" in label -> 2
+            "480p" in label -> 1
+            else -> 0
+        }
+    }
+
     private fun validatedBase(manifestUrl: String): String =
         StremioAddonClient.manifestUrl(manifestUrl)
             ?: throw IllegalArgumentException("رابط الإضافة غير صالح")
