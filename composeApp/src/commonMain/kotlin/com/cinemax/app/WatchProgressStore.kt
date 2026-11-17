@@ -29,14 +29,19 @@ class WatchProgressStore(
         json.decodeFromString(ListSerializer(WatchProgress.serializer()), settings.getString(KEY, "[]"))
             .filter { it.positionMillis > 0L && it.durationMillis > 0L && it.positionMillis < it.durationMillis }
             .sortedByDescending { it.updatedAtEpochMillis }
+            .distinctBy { it.item.id }
     }.getOrDefault(emptyList())
 
     fun save(progress: WatchProgress) {
-        if (progress.durationMillis <= 0L || progress.positionMillis < 0L) return
+        if (progress.durationMillis <= 0L || progress.positionMillis < 0L || progress.item.id.isBlank()) return
         val current = load().filterNot { it.item.id == progress.item.id }
-        val next = if (progress.positionMillis >= progress.durationMillis - 15_000L) current
-            else listOf(progress) + current
-        settings.putString(KEY, json.encodeToString(ListSerializer(WatchProgress.serializer()), next.take(MAX_ITEMS)))
+        val completionWindow = minOf(15_000L, progress.durationMillis / 20L)
+        val finished = progress.positionMillis >= progress.durationMillis - completionWindow
+        val next = if (finished || progress.positionMillis == 0L) current
+            else (listOf(progress) + current)
+                .sortedByDescending { it.updatedAtEpochMillis }
+                .take(MAX_ITEMS)
+        settings.putString(KEY, json.encodeToString(ListSerializer(WatchProgress.serializer()), next))
     }
 
     fun remove(id: String) {
