@@ -98,4 +98,114 @@ class AddonRepositoryIntegrationTest {
             client.close()
         }
     }
+    @Test fun mapsEpisodeToAnotherProvidersIdThroughParentSeriesCatalog() = runBlocking {
+        val selectedShow = StremioMetaPreview("main-local", "series", "Show", releaseInfo = "2025")
+        val savedEpisode = com.cinemax.app.core.EpisodeCatalog.playbackPreview(
+            selectedShow, com.cinemax.app.core.StremioEpisode("main-local:1:2", "Two", 1, 2)
+        )
+        val other = secondary.copy(id = "other", name = "Other")
+        val manifest = """
+            {"id":"other","name":"Other","version":"1","types":["series"],
+            "resources":["catalog","meta","stream"],"idPrefixes":["other"],
+            "catalogs":[{"type":"series","id":"top"}]}
+        """.trimIndent()
+        val client = HttpClient(MockEngine { request ->
+            val path = request.url.encodedPath
+            when {
+                request.url.host == "secondary.example" && path.endsWith("/manifest.json") ->
+                    respond(manifest, headers = header)
+                request.url.host == "secondary.example" && "/catalog/series/" in path ->
+                    respond("""{"metas":[{"id":"other-series","type":"series","name":"Show","releaseInfo":"2025"}]}""", headers = header)
+                request.url.host == "secondary.example" && "/meta/series/" in path ->
+                    respond("""{"meta":{"id":"other-series","type":"series","name":"Show",
+                        "videos":[{"id":"other:1:2","season":1,"episode":2,"title":"Episode Two"}]}}""", headers = header)
+                request.url.host == "secondary.example" && "/stream/series/" in path ->
+                    respond("""{"streams":[{"name":"1080p","url":"https://cdn.example/second.mp4"}]}""", headers = header)
+                else -> respond("Unavailable", status = HttpStatusCode.NotFound)
+            }
+        }) { expectSuccess = true }
+        try {
+            val sources = AddonRepository(client).loadStreamsAcrossAddons(
+                listOf(other), savedEpisode, preferredAddonId = "absent"
+            )
+            assertEquals(1, sources.size)
+            assertEquals("Other • 1080p", sources.single().name)
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test fun refusesToPlayAnotherEpisodeWhenSeasonsDoNotMatch() = runBlocking {
+        val original = StremioMetaPreview("local-main", "series", "Show", releaseInfo = "2025")
+        val selectedEpisode = com.cinemax.app.core.EpisodeCatalog.playbackPreview(
+            original, com.cinemax.app.core.StremioEpisode("main:2:3", "Third", 2, 3)
+        )
+        var streamRequests = 0
+        val manifest = """
+            {"id":"secondary","name":"Secondary","version":"1","types":["series"],
+             "resources":["catalog","meta","stream"],"catalogs":[{"type":"series","id":"top"}]}
+        """.trimIndent()
+        val client = HttpClient(MockEngine { request ->
+            val path = request.url.encodedPath
+            when {
+                path.endsWith("/manifest.json") -> respond(manifest, headers = header)
+                "/catalog/series/" in path ->
+                    respond("""{"metas":[{"id":"other","type":"series","name":"Show","releaseInfo":"2025"}]}""", headers = header)
+                "/meta/series/" in path ->
+                    respond("""{"meta":{"id":"other","type":"series","name":"Show",
+                        "videos":[{"id":"other:1:3","season":1,"episode":3}]}}""", headers = header)
+                "/stream/series/" in path -> {
+                    streamRequests++
+                    respond("""{"streams":[{"url":"https://cdn.example/wrong.mp4"}]}""", headers = header)
+                }
+                else -> respond("{}", status = HttpStatusCode.NotFound)
+            }
+        }) { expectSuccess = true }
+        try {
+            val results = AddonRepository(client).loadStreamsAcrossAddons(
+                listOf(secondary), selectedEpisode, preferredAddonId = "absent"
+            )
+            assertTrue(results.isEmpty())
+            assertEquals(0, streamRequests)
+        } finally {
+            client.close()
+        }
+    }
+
+    @Test fun embeddedEpisodeStreamAvoidsUnnecessaryNetworkCall() = runBlocking {
+        val original = StremioMetaPreview("local-main", "series", "Show", releaseInfo = "2025")
+        val selected = com.cinemax.app.core.EpisodeCatalog.playbackPreview(
+            original, com.cinemax.app.core.StremioEpisode("main:1:2", "Two", 1, 2))
+        var streamRequests = 0
+        val manifest = """
+            {"id":"secondary","name":"Secondary","version":"1","types":["series"],
+             "resources":["catalog","meta"],"catalogs":[{"type":"series","id":"top"}]}
+        """.trimIndent()
+        val client = HttpClient(MockEngine { request ->
+            val path = request.url.encodedPath
+            when {
+                path.endsWith("/manifest.json") -> respond(manifest, headers = header)
+                "/catalog/series/" in path ->
+                    respond("""{"metas":[{"id":"other","type":"series","name":"Show","releaseInfo":"2025"}]}""", headers = header)
+                "/meta/series/" in path ->
+                    respond("""{"meta":{"id":"other","type":"series","name":"Show",
+                        "videos":[{"id":"other:1:2","season":1,"episode":2,
+                        "streams":[{"url":"https://cdn.example/embedded.mp4","name":"720p"}]}]}}""", headers = header)
+                "/stream/series/" in path -> {
+                    streamRequests++
+                    respond("{}", status = HttpStatusCode.NotFound)
+                }
+                else -> respond("{}", status = HttpStatusCode.NotFound)
+            }
+        }) { expectSuccess = true }
+        try {
+            val streams = AddonRepository(client).loadStreamsAcrossAddons(
+                listOf(secondary), selected, preferredAddonId = "absent")
+            assertEquals("https://cdn.example/embedded.mp4", streams.single().url)
+            assertEquals(0, streamRequests)
+        } finally {
+            client.close()
+        }
+    }
+
 }
