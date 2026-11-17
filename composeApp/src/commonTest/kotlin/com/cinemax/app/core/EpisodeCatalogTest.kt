@@ -155,4 +155,21 @@ class EpisodeCatalogTest {
         assertEquals("tt1234567", EpisodeCatalog.restoreSelection(decoded)?.first?.id)
     }
 
+    @Test fun restoresLegacyImdbEpisodeWithoutParentFields() {
+        val oldRecord = StremioMetaPreview("tt1234567:2:3", "series",
+            "Show • S02E03 • Legacy episode")
+        val result = EpisodeCatalog.restoreSelection(oldRecord)
+        assertEquals("tt1234567", result?.first?.id)
+        assertEquals("Show", result?.first?.name)
+        assertEquals(2, result?.second?.season)
+        assertEquals(3, result?.second?.number)
+    }
+
+    @Test fun neverGuessesLegacyEpisodeParentWithoutExactImdbPattern() {
+        assertEquals(null, EpisodeCatalog.restoreSelection(
+            StremioMetaPreview("catalog:2:3", "series", "Show • Episode")))
+        assertEquals(null, EpisodeCatalog.restoreSelection(
+            StremioMetaPreview("tt1234567:2:3", "series", "Episode 3")))
+    }
+
 }
