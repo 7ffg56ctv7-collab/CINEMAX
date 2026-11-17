@@ -28,7 +28,17 @@ class AddonRepository(
             ?: throw IllegalArgumentException("رابط الإضافة يجب أن يبدأ بـ https://")
         val response = http.get(url)
         require(response.status.isSuccess()) { "Addon manifest request failed: ${response.status.value}" }
-        return json.decodeFromString(response.bodyAsText())
+        val manifest = json.decodeFromString<StremioManifest>(response.bodyAsText())
+        require(manifest.id.isNotBlank() && manifest.id.length <= 256) { "Invalid addon identifier" }
+        require(manifest.name.isNotBlank() && manifest.name.length <= 256) { "Invalid addon name" }
+        require(manifest.version.isNotBlank() && manifest.version.length <= 128) { "Invalid addon version" }
+        return manifest.copy(
+            catalogs = manifest.catalogs
+                .filter { it.type.isNotBlank() && it.id.isNotBlank() && it.id.length <= 512 }
+                .distinctBy { it.type to it.id }
+                .take(MAX_CATALOG_DEFINITIONS),
+            types = manifest.types.filter { it.isNotBlank() }.distinct().take(30)
+        )
     }
 
     suspend fun loadCatalog(
@@ -42,8 +52,10 @@ class AddonRepository(
         val response = http.get(url)
         require(response.status.isSuccess()) { "Addon catalog request failed: ${response.status.value}" }
         return json.decodeFromString<StremioCatalogResponse>(response.bodyAsText()).metas
-            .filter { it.id.isNotBlank() && it.type.isNotBlank() && it.name.isNotBlank() }
+            .filter { it.id.isNotBlank() && it.type.isNotBlank() && it.name.isNotBlank() &&
+                it.id.length <= 512 && it.name.length <= 512 }
             .distinctBy { "${it.type.lowercase()}:${it.id}" }
+            .take(MAX_CATALOG_ITEMS)
     }
 
     suspend fun searchCatalog(
@@ -54,7 +66,8 @@ class AddonRepository(
         skip: Int = 0
     ): List<StremioMetaPreview> {
         require(query.isNotBlank()) { "Search query cannot be blank" }
-        require(skip >= 0) { "Skip cannot be negative" }
+        require(query.trim().length <= MAX_SEARCH_CHARS) { "Search query too long" }
+        require(skip in 0..MAX_SKIP) { "Skip is outside supported range" }
         return loadCatalog(
             manifestUrl, type, catalogId,
             mapOf("search" to query.trim(), "skip" to skip.toString())
@@ -67,6 +80,7 @@ class AddonRepository(
         val response = http.get(url)
         require(response.status.isSuccess()) { "Addon metadata request failed: ${response.status.value}" }
         return json.decodeFromString<StremioMetaResponse>(response.bodyAsText()).meta
+            ?.let { it.copy(videos = it.videos.take(MAX_EPISODE_METADATA)) }
     }
 
     suspend fun loadStreams(manifestUrl: String, type: String, mediaId: String): List<StremioStream> {
@@ -76,6 +90,7 @@ class AddonRepository(
         return json.decodeFromString<StremioStreamResponse>(response.bodyAsText()).streams
             .filter { it.url.isNullOrBlank() || StremioAddonClient.isSafeMediaUrl(it.url.trim()) }
             .map { stream -> stream.copy(url = stream.url?.trim()?.takeIf { it.isNotEmpty() }) }
+            .take(MAX_STREAMS_PER_TITLE)
     }
 
     /**
@@ -202,6 +217,12 @@ class AddonRepository(
         const val MAX_MATCHED_TITLES = 4
         const val MAX_CATALOGS_PER_ADDON = 8
         const val ADDON_DISCOVERY_TIMEOUT_MS = 15_000L
+        const val MAX_CATALOG_DEFINITIONS = 200
+        const val MAX_CATALOG_ITEMS = 500
+        const val MAX_STREAMS_PER_TITLE = 250
+        const val MAX_EPISODE_METADATA = 1_000
+        const val MAX_SEARCH_CHARS = 160
+        const val MAX_SKIP = 1_000_000
     }
 
     private fun validatedBase(manifestUrl: String): String =
