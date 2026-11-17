@@ -6,6 +6,12 @@ import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.Json
 import com.cinemax.app.core.MediaIdentity
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import io.ktor.http.isSuccess
 
 /**
@@ -71,101 +77,111 @@ class AddonRepository(
     }
 
     /**
-     * Match catalog entries by canonical identity, then query each addon's own ID.
-     * A matching title can have different IDs in different addons.
+     * Discover the preferred addon's sources by its own ID and other providers
+     * by canonical IMDb ID when advertised, or by title/year catalog matching.
+     * Each failing provider is isolated so the others remain available.
      */
     suspend fun loadStreamsAcrossAddons(
         addons: List<InstalledAddon>,
         selected: StremioMetaPreview,
-        preferredAddonId: String? = null
-    ): List<StremioStream> {
-        val selectedKey = MediaIdentity.key(
-            type = selected.type, id = selected.id,
-            title = selected.name, releaseInfo = selected.releaseInfo
-        )
-        val matches = linkedMapOf<String, Pair<InstalledAddon, StremioMetaPreview>>()
-        addons.forEach { addon ->
-            try {
-                val manifest = loadManifest(addon.manifestUrl)
-                manifest.catalogs
-                    .filter { it.type.equals(selected.type, ignoreCase = true) }
-                    .forEach { catalog ->
-                        val candidates = linkedMapOf<String, StremioMetaPreview>()
-                        // Search-capable catalogs can find entries beyond their first page.
-                        if (catalog.extra.any { it.name.equals("search", ignoreCase = true) }) {
-                            try {
-                                searchCatalog(addon.manifestUrl, catalog.type, catalog.id, selected.name)
-                                    .forEach { candidates["${it.type}:${it.id}"] = it }
-                            } catch (error: Exception) {
-                                if (error is CancellationException) throw error
-                                // Continue with the catalog's normal first page if search is unavailable.
-                            }
-                        }
+        preferredAddonId: String? = null,
+        cachedPreferredStreams: List<StremioStream>? = null
+    ): List<StremioStream> = coroutineScope {
+        val preferred = addons.firstOrNull { it.id == preferredAddonId }
+        val ordered = (listOfNotNull(preferred) + addons.filterNot { it.id == preferredAddonId })
+            .distinctBy { it.id to it.manifestUrl }
+        val semaphore = Semaphore(MAX_PARALLEL_ADDONS)
+        val batches = ordered.map { addon ->
+            async {
+                semaphore.withPermit {
+                    // An unresponsive third-party addon must not block every source.
+                    withTimeoutOrNull(ADDON_DISCOVERY_TIMEOUT_MS) {
                         try {
-                            // Keep first-page entries too: some addons advertise search but implement it poorly.
-                            loadCatalog(addon.manifestUrl, catalog.type, catalog.id)
-                                .forEach { candidates["${it.type}:${it.id}"] = it }
+                            val raw = if (addon.id == preferredAddonId) {
+                                cachedPreferredStreams ?: loadStreams(addon.manifestUrl, selected.type, selected.id)
+                            } else {
+                                discoverOtherProviderStreams(addon, selected)
+                            }
+                            raw.map { stream ->
+                                stream.copy(
+                                    name = addon.name + " • " +
+                                        (stream.name ?: stream.title ?: "مصدر")
+                                )
+                            }
                         } catch (error: Exception) {
                             if (error is CancellationException) throw error
+                            emptyList()
                         }
-                        candidates.values.forEach { candidate ->
-                            val candidateKey = MediaIdentity.key(
-                                type = candidate.type, id = candidate.id,
-                                title = candidate.name, releaseInfo = candidate.releaseInfo
-                            )
-                            // Never trust opaque addon-local IDs across providers: equal IDs can describe unrelated titles.
-                            val sameMedia = selectedKey != null && candidateKey == selectedKey
-                            if (sameMedia) {
-                                matches["${addon.id}:${candidate.type}:${candidate.id}"] = addon to candidate
-                            }
-                        }
-                    }
+                    } ?: emptyList()
+                }
+            }
+        }
+        StreamDiscoveryRules.rankAndDeduplicate(batches.awaitAll().flatten())
+    }
+
+    private suspend fun discoverOtherProviderStreams(
+        addon: InstalledAddon,
+        selected: StremioMetaPreview
+    ): List<StremioStream> {
+        val manifest = loadManifest(addon.manifestUrl)
+        if (StreamDiscoveryRules.supportsCanonicalDirectStream(manifest, selected.type, selected.id)) {
+            try {
+                val direct = loadStreams(addon.manifestUrl, selected.type, selected.id)
+                if (direct.isNotEmpty()) return direct
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
             }
         }
-        // Keep the selected addon usable even when its item is beyond the first catalog page.
-        addons.firstOrNull { it.id == preferredAddonId }?.let { addon ->
-            if (matches.values.none { it.first.id == addon.id } && selected.id.isNotBlank()) {
-                matches["${addon.id}:${selected.type}:${selected.id}"] = addon to selected
-            }
-        }
-        val collected = matches.values.flatMap { (addon, media) ->
-            try {
-                loadStreams(addon.manifestUrl, media.type, media.id).map { stream ->
-                    stream.copy(name = "${addon.name} • ${stream.name ?: stream.title ?: "مصدر"}")
+
+        val selectedKey = MediaIdentity.key(
+            type = selected.type, id = selected.id,
+            title = selected.name, releaseInfo = selected.releaseInfo
+        ) ?: return emptyList()
+        val matches = linkedMapOf<String, StremioMetaPreview>()
+        manifest.catalogs
+            .asSequence()
+            .filter { it.type.equals(selected.type, ignoreCase = true) }
+            .take(MAX_CATALOGS_PER_ADDON)
+            .forEach { catalog ->
+                val candidates = linkedMapOf<String, StremioMetaPreview>()
+                if (catalog.extra.any { it.name.equals("search", ignoreCase = true) }) {
+                    try {
+                        searchCatalog(addon.manifestUrl, catalog.type, catalog.id, selected.name)
+                            .forEach { candidates[it.type + ":" + it.id] = it }
+                    } catch (error: Exception) {
+                        if (error is CancellationException) throw error
+                    }
                 }
+                try {
+                    loadCatalog(addon.manifestUrl, catalog.type, catalog.id)
+                        .forEach { candidates[it.type + ":" + it.id] = it }
+                } catch (error: Exception) {
+                    if (error is CancellationException) throw error
+                }
+                for (candidate in candidates.values) {
+                    val key = MediaIdentity.key(
+                        type = candidate.type, id = candidate.id,
+                        title = candidate.name, releaseInfo = candidate.releaseInfo
+                    )
+                    if (key == selectedKey) {
+                        matches[candidate.type + ":" + candidate.id] = candidate
+                    }
+                }
+            }
+        return matches.values.flatMap { matched ->
+            try {
+                loadStreams(addon.manifestUrl, matched.type, matched.id)
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 emptyList()
             }
         }
-        // Prefer reliable direct HTTPS streams over unresolved torrent-only entries.
-        val ranked = collected
-            .filter { it.url == null || StremioAddonClient.isSafeMediaUrl(it.url) }
-            .sortedWith(compareByDescending<StremioStream> { it.url?.startsWith("https://", ignoreCase = true) == true }
-                .thenByDescending { streamQuality(it) })
-        val seen = mutableSetOf<String>()
-        return ranked.filter { stream ->
-            val url = stream.url?.trim()
-            val hash = stream.infoHash?.trim()?.lowercase()
-            val identity = when {
-                !url.isNullOrEmpty() -> "url:$url"
-                !hash.isNullOrEmpty() -> "torrent:$hash:${stream.fileIdx ?: 0}"
-                else -> "opaque:${stream.name}:${stream.title}"
-            }
-            seen.add(identity)
-        }
     }
-    private fun streamQuality(stream: StremioStream): Int {
-        val label = "${stream.name.orEmpty()} ${stream.title.orEmpty()}".lowercase()
-        return when {
-            "2160p" in label || "4k" in label -> 4
-            "1080p" in label -> 3
-            "720p" in label -> 2
-            "480p" in label -> 1
-            else -> 0
-        }
+
+    private companion object {
+        const val MAX_PARALLEL_ADDONS = 3
+        const val MAX_CATALOGS_PER_ADDON = 8
+        const val ADDON_DISCOVERY_TIMEOUT_MS = 15_000L
     }
 
     private fun validatedBase(manifestUrl: String): String =
