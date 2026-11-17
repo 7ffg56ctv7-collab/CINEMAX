@@ -81,6 +81,36 @@ class WatchProgressStoreTest {
         assertTrue(store.load().isEmpty())
     }
 
+
+    @Test
+    fun delayedCallbackCannotOverwriteNewerProgress() {
+        val store = WatchProgressStore(MapSettings())
+        val item = StremioMetaPreview("tt-stale", "movie", "Stale")
+        store.save(WatchProgress(item, 60_000L, 100_000L, 200L))
+        store.save(WatchProgress(item, 10_000L, 100_000L, 100L))
+        assertEquals(60_000L, store.load().single().positionMillis)
+    }
+
+    @Test
+    fun delayedCompletionCannotDeleteNewerProgress() {
+        val store = WatchProgressStore(MapSettings())
+        val item = StremioMetaPreview("tt-completion", "movie", "Completion")
+        store.save(WatchProgress(item, 40_000L, 100_000L, 200L))
+        store.save(WatchProgress(item, 100_000L, 100_000L, 100L))
+        assertEquals(40_000L, store.load().single().positionMillis)
+    }
+
+    @Test
+    fun historyLoadedFromStorageIsCappedAndDeduplicated() {
+        val settings = MapSettings()
+        val store = WatchProgressStore(settings)
+        val item = StremioMetaPreview("same", "movie", "Same")
+        store.save(WatchProgress(item, 10_000L, 100_000L, 1L))
+        store.save(WatchProgress(item, 30_000L, 100_000L, 2L))
+        assertEquals(1, store.load().size)
+        assertEquals(30_000L, store.load().single().positionMillis)
+    }
+
     @Test
     fun invalidStoredDataFallsBackToEmptyProgress() {
         val settings = MapSettings()
