@@ -67,4 +67,24 @@ class EpisodeCatalogTest {
         val entries = (1..600).map { episode("show:1:" + it, 1, it, "Episode") }
         assertEquals(500, EpisodeCatalog.parse(entries).size)
     }
+    @Test fun keepsSafeEmbeddedEpisodeStreamsAndRejectsInsecureOnes() {
+        val safe = JsonObject(mapOf(
+            "name" to JsonPrimitive("1080p"),
+            "url" to JsonPrimitive("https://cdn.example/video.mp4")
+        ))
+        val unsafe = JsonObject(mapOf(
+            "name" to JsonPrimitive("Unsafe"),
+            "url" to JsonPrimitive("http://public.example/video.mp4")
+        ))
+        val video = JsonObject(mapOf(
+            "id" to JsonPrimitive("tt1234567:1:1"),
+            "season" to JsonPrimitive(1),
+            "episode" to JsonPrimitive(1),
+            "streams" to kotlinx.serialization.json.JsonArray(listOf(unsafe, safe))
+        ))
+        val streams = EpisodeCatalog.parse(listOf(video)).single().embeddedStreams
+        assertEquals(1, streams.size)
+        assertEquals("https://cdn.example/video.mp4", streams.single().url)
+    }
+
 }
