@@ -59,6 +59,7 @@ fun App() {
     var playableSourcesOnly by remember { mutableStateOf(false) }
     var preferences by remember { mutableStateOf(preferencesStore.load()) }
     var showSettings by remember { mutableStateOf(false) }
+    var showClearHistoryDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val addons = remember { mutableStateListOf<InstalledAddon>().apply { addAll(addonStore.load()) } }
     val catalogItems = remember { mutableStateListOf<StremioMetaPreview>() }
@@ -309,7 +310,7 @@ fun App() {
                 Spacer(Modifier.weight(1f))
                 FilterChip(selected = !showFavoritesOnly, onClick = { showFavoritesOnly = false }, label = { Text("الكل") })
                 Spacer(Modifier.width(6.dp))
-                FilterChip(selected = showFavoritesOnly, onClick = { showFavoritesOnly = true }, label = { Text("قائمتي ★") })
+                FilterChip(selected = showFavoritesOnly, onClick = { showFavoritesOnly = true }, label = { Text("قائمتي ★ (${favoriteItems.size})") })
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip(selected = mediaTypeFilter == null, onClick = { mediaTypeFilter = null }, label = { Text("كل الأنواع") })
@@ -323,6 +324,8 @@ fun App() {
                 FilterChip(selected = catalogSort == CatalogSort.Source, onClick = { catalogSort = CatalogSort.Source }, label = { Text("ترتيب المصدر") })
                 FilterChip(selected = catalogSort == CatalogSort.Title, onClick = { catalogSort = CatalogSort.Title }, label = { Text("حسب الاسم") })
                 FilterChip(selected = catalogSort == CatalogSort.Newest, onClick = { catalogSort = CatalogSort.Newest }, label = { Text("الأحدث") })
+                FilterChip(selected = catalogSort == CatalogSort.Oldest, onClick = { catalogSort = CatalogSort.Oldest }, label = { Text("الأقدم") })
+                FilterChip(selected = catalogSort == CatalogSort.Rating, onClick = { catalogSort = CatalogSort.Rating }, label = { Text("الأعلى تقييمًا") })
             }
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 TextButton(enabled = mediaTypeFilter != null || localFilterQuery.isNotEmpty() || catalogSort != CatalogSort.Source,
@@ -332,7 +335,7 @@ fun App() {
             }
             if (watchProgressItems.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
-                Text("تابع المشاهدة", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Text("تابع المشاهدة • ${watchProgressItems.size}", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     watchProgressItems.forEach { progress ->
@@ -492,6 +495,7 @@ fun App() {
                 if (showFavoritesOnly) favoriteItems.toList() else catalogItems.toList(),
                 mediaTypeFilter, localFilterQuery, catalogSort
             )
+            Text("نتائج العرض: ${visibleItems.size}", color = Color.LightGray, fontSize = 12.sp)
             if (visibleItems.isEmpty()) {
                 val hasUnfilteredItems = if (showFavoritesOnly) favoriteItems.isNotEmpty() else catalogItems.isNotEmpty()
                 Text(if (hasUnfilteredItems) "لا توجد نتائج تطابق التصفية الحالية." else if (showFavoritesOnly) "قائمتك فارغة حاليًا. افتح تفاصيل أي عنوان وأضفه إلى قائمتك." else "ستظهر عناصر الكتالوج هنا بعد تثبيت إضافة توفر كتالوجًا.", color = Color.LightGray, fontSize = 13.sp)
@@ -608,6 +612,9 @@ fun App() {
                         Divider()
                         Text("الإضافات", color = appAccent, fontWeight = FontWeight.Bold)
                         Text("إدارة المصادر من بطاقة «مصادرك وإضافاتك» في الرئيسية. تشغيل شيفرات الإضافات غير مفعّل حفاظًا على الأمان.", fontSize = 12.sp, color = Color.Gray)
+                        if (watchProgressItems.isNotEmpty()) {
+                            TextButton(onClick = { showClearHistoryDialog = true }) { Text("مسح سجل متابعة المشاهدة") }
+                        }
                         Text("RAIF • إصدار تجريبي", fontSize = 11.sp, color = Color.Gray)
                     }
                 },
@@ -615,6 +622,19 @@ fun App() {
             )
         }
 
+        if (showClearHistoryDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearHistoryDialog = false },
+                title = { Text("مسح متابعة المشاهدة؟") },
+                text = { Text("سيُحذف تقدم المشاهدة المحفوظ على هذا الجهاز. لن تُحذف قائمة المفضلة.") },
+                confirmButton = { TextButton(onClick = {
+                    watchProgressItems.toList().forEach { watchProgressStore.remove(it.item) }
+                    watchProgressItems.clear()
+                    showClearHistoryDialog = false
+                }) { Text("حذف السجل") } },
+                dismissButton = { TextButton(onClick = { showClearHistoryDialog = false }) { Text("إلغاء") } }
+            )
+        }
         if (showAddDialog) {
             AlertDialog(
                 onDismissRequest = { showAddDialog = false },
@@ -705,6 +725,7 @@ fun App() {
                 mutableStateOf(sourcePreferenceStore.load(selected))
             }
             var streamQualityFilter by remember(selected.type, selected.id) { mutableStateOf<String?>(null) }
+            var streamProviderFilter by remember(selected.type, selected.id) { mutableStateOf<String?>(null) }
             Dialog(onDismissRequest = { selectedItem = null }) {
                 Column(
                     Modifier.fillMaxWidth().heightIn(max = 680.dp)
@@ -779,13 +800,25 @@ fun App() {
                                     label = { Text(quality ?: "جميع الجودات") })
                             }
                         }
+                        val providers = DiscoveryPresentation.availableProviders(streams.toList())
+                        if (providers.size > 1) {
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                FilterChip(selected = streamProviderFilter == null, onClick = { streamProviderFilter = null }, label = { Text("جميع المزوّدين") })
+                                providers.forEach { provider ->
+                                    FilterChip(selected = streamProviderFilter == provider, onClick = { streamProviderFilter = provider }, label = { Text(provider) })
+                                }
+                            }
+                        }
+                        if (streamQualityFilter != null || streamProviderFilter != null) {
+                            TextButton(onClick = { streamQualityFilter = null; streamProviderFilter = null }) { Text("مسح تصفية المصادر") }
+                        }
                         preferredSourceName?.let { preference ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("آخر مصدر اخترته: " + preference, color = Color.LightGray, fontSize = 11.sp, modifier = Modifier.weight(1f), maxLines = 2)
                                 TextButton(onClick = { sourcePreferenceStore.clear(selected); preferredSourceName = null }) { Text("مسح") }
                             }
                         }
-                        val visibleStreams = DiscoveryPresentation.sortedStreams(streams.toList(), playableSourcesOnly, preferredSourceName, streamQualityFilter)
+                        val visibleStreams = DiscoveryPresentation.sortedStreams(streams.toList(), playableSourcesOnly, preferredSourceName, streamQualityFilter, streamProviderFilter)
                         Text("المصادر المعروضة: " + visibleStreams.size, color = Color.LightGray, fontSize = 11.sp)
                         if (visibleStreams.isEmpty()) {
                             Text("لا تتوفر روابط تشغيل مباشرة آمنة حاليًا.", color = Color.LightGray, fontSize = 12.sp)
@@ -795,8 +828,15 @@ fun App() {
                                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                     Text("${index + 1}. ${stream.name ?: stream.title ?: "مصدر"}", color = Color.White, fontWeight = FontWeight.SemiBold)
                                     if (stream.name == preferredSourceName) Text("★ آخر مصدر اخترته", color = appAccent, fontSize = 11.sp)
-                                    DiscoveryPresentation.qualityLabel(stream)?.let { quality ->
-                                        Text("الجودة: " + quality, color = appAccent, fontSize = 12.sp)
+                                    val sourceBadges = listOfNotNull(
+                                        DiscoveryPresentation.qualityLabel(stream),
+                                        DiscoveryPresentation.codecLabel(stream),
+                                        DiscoveryPresentation.hdrLabel(stream),
+                                        DiscoveryPresentation.audioLabel(stream)?.let { "الصوت: $it" },
+                                        DiscoveryPresentation.subtitleLabel(stream)?.let { "الترجمة: $it" }
+                                    )
+                                    if (sourceBadges.isNotEmpty()) {
+                                        Text(sourceBadges.joinToString(" • "), color = appAccent, fontSize = 12.sp)
                                     }
                                     stream.title?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
                                     stream.url?.let { mediaUrl ->
