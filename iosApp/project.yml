@@ -7,7 +7,7 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     IPHONEOS_DEPLOYMENT_TARGET: "16.0"
-    TARGETED_DEVICE_FAMILY: "1,2"
+    TARGETED_DEVICE_FAMILY: "1"
 targets:
   CINEMAX:
     type: application
@@ -17,10 +17,13 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.cinemax.app
-        PRODUCT_NAME: CINEMAX
+        TARGETED_DEVICE_FAMILY: "1"
+        PRODUCT_NAME: RAIF
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: CINEMAX
+        INFOPLIST_KEY_CFBundleDisplayName: RAIF
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
         INFOPLIST_KEY_CADisableMinimumFrameDurationOnPhone: YES
         INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads: NO

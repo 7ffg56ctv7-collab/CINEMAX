@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitViewController
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -29,6 +30,7 @@ actual fun NativeVideoPlayer(
     initialPositionMillis: Long,
     onProgress: (positionMillis: Long, durationMillis: Long) -> Unit
 ) {
+    val latestOnProgress = rememberUpdatedState(onProgress)
     val player = remember(url) {
         AVPlayer(uRL = NSURL(string = url)).apply {
             if (initialPositionMillis > 0L) {
@@ -44,19 +46,39 @@ actual fun NativeVideoPlayer(
             if (positionSeconds.isFinite() && durationSeconds.isFinite() &&
                 positionSeconds > 0.0 && durationSeconds > 0.0
             ) {
-                onProgress((positionSeconds * 1000.0).toLong(), (durationSeconds * 1000.0).toLong())
+                latestOnProgress.value((positionSeconds * 1000.0).toLong(), (durationSeconds * 1000.0).toLong())
             }
             delay(5_000L)
         }
     }
     DisposableEffect(player) {
-        onDispose { player.pause() }
+        onDispose {
+            val positionSeconds = CMTimeGetSeconds(player.currentTime())
+            val durationSeconds = player.currentItem?.duration?.let { CMTimeGetSeconds(it) } ?: 0.0
+            if (positionSeconds.isFinite() && durationSeconds.isFinite() &&
+                positionSeconds > 0.0 && durationSeconds > 0.0
+            ) {
+                latestOnProgress.value(
+                    (positionSeconds * 1000.0).toLong(),
+                    (durationSeconds * 1000.0).toLong()
+                )
+            }
+            player.pause()
+        }
     }
     UIKitViewController(
         factory = {
             AVPlayerViewController().apply {
                 this.player = player
                 showsPlaybackControls = true
+            }
+        },
+        // Compose may reuse the same AVPlayerViewController when a new URL is
+        // selected. The controller must be rebound to the new AVPlayer; changing
+        // remember(url) alone does not update the native view controller.
+        update = { controller ->
+            if (controller.player !== player) {
+                controller.player = player
             }
         },
         modifier = modifier
