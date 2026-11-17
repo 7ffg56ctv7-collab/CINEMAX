@@ -87,4 +87,15 @@ class EpisodeCatalogTest {
         assertEquals("https://cdn.example/video.mp4", streams.single().url)
     }
 
+    @Test fun recognizesStremioScheduleFlagWithoutTreatingItAsEpisodes() {
+        val raw = """
+          {"id":"tv-channel","type":"series","name":"Channel",
+           "hasScheduledVideos":true,
+           "videos":[{"id":"schedule:slot","title":"News"}]}
+        """.trimIndent()
+        val meta = kotlinx.serialization.json.Json.decodeFromString<com.cinemax.app.addons.StremioMeta>(raw)
+        assertTrue(meta.hasScheduledVideos)
+        assertEquals(1, meta.videos.size)
+    }
+
 }

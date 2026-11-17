@@ -120,7 +120,8 @@ fun App() {
                         null
                     }
                 }
-                val episodeChoices = EpisodeCatalog.parse(selectedMeta?.videos.orEmpty())
+                val episodeChoices = if (selectedMeta?.hasScheduledVideos == true) emptyList()
+                    else EpisodeCatalog.parse(selectedMeta?.videos.orEmpty())
                 if (item.type.equals("series", ignoreCase = true) &&
                     episodeChoices.isNotEmpty() && selectedEpisode == null
                 ) return@LaunchedEffect
@@ -833,15 +834,18 @@ fun App() {
                     selectedMeta?.cast?.takeIf { it.isNotEmpty() }?.let {
                         Text("طاقم التمثيل: ${it.take(8).joinToString("، ")}", color = Color.LightGray, fontSize = 12.sp)
                     }
-                    val episodes = remember(selectedMeta?.videos) {
-                        EpisodeCatalog.parse(selectedMeta?.videos.orEmpty())
+                    val episodes = remember(selectedMeta?.videos, selectedMeta?.hasScheduledVideos) {
+                        if (selectedMeta?.hasScheduledVideos == true) emptyList()
+                        else EpisodeCatalog.parse(selectedMeta?.videos.orEmpty())
                     }
                     if (selected.type.equals("series", ignoreCase = true) && episodes.isNotEmpty()) {
                         Divider(color = Color.DarkGray)
                         Text("اختر الحلقة • " + episodes.size + " حلقة", color = Color.White, fontWeight = FontWeight.Bold)
                         val seasons = EpisodeCatalog.seasons(episodes)
-                        var episodeSeasonFilter by remember(selected.id) { mutableStateOf<Int?>(null) }
-                        val activeSeason = episodeSeasonFilter ?: seasons.firstOrNull()
+                        var episodeSeasonFilter by remember(selected.id, selected.name, selected.releaseInfo) {
+                            mutableStateOf<Int?>(null)
+                        }
+                        val activeSeason = episodeSeasonFilter ?: seasons.firstOrNull { it > 0 } ?: seasons.firstOrNull()
                         if (seasons.isNotEmpty()) {
                             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 seasons.forEach { season ->
@@ -851,7 +855,7 @@ fun App() {
                             }
                         }
                         val seasonEpisodes = EpisodeCatalog.forSeason(episodes, activeSeason)
-                        var shownEpisodes by remember(selected.id, activeSeason) { mutableIntStateOf(20) }
+                        var shownEpisodes by remember(selected.id, selected.name, activeSeason) { mutableIntStateOf(20) }
                         seasonEpisodes.take(shownEpisodes).forEach { episode ->
                             FilterChip(
                                 selected = selectedEpisode?.id == episode.id,
@@ -877,7 +881,8 @@ fun App() {
                         Text("جارٍ جلب المصادر...", color = Color.LightGray)
                     }
                     val waitingForEpisode = selected.type.equals("series", ignoreCase = true) &&
-                        selectedMeta?.videos?.isNotEmpty() == true && selectedEpisode == null
+                        selectedMeta?.videos?.isNotEmpty() == true &&
+                        selectedMeta?.hasScheduledVideos != true && selectedEpisode == null
                     if (!loadingStreams && streams.isEmpty() && !waitingForEpisode) {
                         Text("لم تُرجع الإضافة مصادر لهذا العنوان.", color = Color.LightGray, fontSize = 13.sp)
                     } else if (streams.isNotEmpty()) {
@@ -919,7 +924,7 @@ fun App() {
                             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
                                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                     Text("${index + 1}. ${stream.name ?: stream.title ?: "مصدر"}", color = Color.White, fontWeight = FontWeight.SemiBold)
-                                    val sourceLabel = stream.name ?: stream.title ?: "مصدر"
+                                    val sourceLabel = (stream.name ?: stream.title ?: "مصدر").take(256)
                                     val isReportedBroken = sourceLabel in brokenSourceNames
                                     if (stream.name == preferredSourceName) Text("★ آخر مصدر نجح", color = appAccent, fontSize = 11.sp)
                                     if (isReportedBroken) {

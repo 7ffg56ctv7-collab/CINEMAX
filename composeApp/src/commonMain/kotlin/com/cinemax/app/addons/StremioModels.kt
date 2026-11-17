@@ -63,7 +63,8 @@ data class StremioMeta(
     val genres: List<String> = emptyList(),
     val director: List<String> = emptyList(),
     val cast: List<String> = emptyList(),
-    val videos: List<JsonObject> = emptyList()
+    val videos: List<JsonObject> = emptyList(),
+    val hasScheduledVideos: Boolean = false
 )
 
 @Serializable
