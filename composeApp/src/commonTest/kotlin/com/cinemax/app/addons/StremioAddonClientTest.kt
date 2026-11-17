@@ -9,6 +9,22 @@ import kotlin.test.assertFailsWith
 
 class StremioAddonClientTest {
     @Test
+    fun manifestQueryAndTrailingSlashDoNotCreateDoubleSlashes() {
+        assertEquals(
+            "https://addon.example/config/manifest.json?token=abc",
+            StremioAddonClient.manifestUrl("https://addon.example/config/?token=abc")
+        )
+        assertEquals(
+            "https://addon.example/config/manifest.json?token=abc",
+            StremioAddonClient.manifestUrl("https://addon.example/config/manifest.json?token=abc")
+        )
+        assertEquals(
+            "https://addon.example/config/stream/movie/tt123.json?token=abc",
+            StremioAddonClient.resourceUrl("https://addon.example/config/?token=abc", "stream", "movie", "tt123")
+        )
+    }
+
+    @Test
     fun normalizesManifestUrl() {
         assertEquals("https://addon.example/manifest.json", StremioAddonClient.manifestUrl("https://addon.example"))
         assertEquals("https://addon.example/manifest.json", StremioAddonClient.manifestUrl("https://addon.example/manifest.json"))
