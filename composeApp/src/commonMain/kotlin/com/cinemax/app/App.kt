@@ -72,6 +72,7 @@ fun App() {
     var selectedItem by remember { mutableStateOf<StremioMetaPreview?>(null) }
     var selectedMeta by remember { mutableStateOf<com.cinemax.app.addons.StremioMeta?>(null) }
     var selectedEpisode by remember { mutableStateOf<StremioEpisode?>(null) }
+    var selectedMetaItemKey by remember { mutableStateOf<String?>(null) }
     var activeCatalogType by remember { mutableStateOf<String?>(null) }
     var activeCatalogId by remember { mutableStateOf<String?>(null) }
     var activeCatalogSupportsSearch by remember { mutableStateOf(false) }
@@ -99,7 +100,11 @@ fun App() {
             loadingStreams = true
             streamsError = null
             streams.clear()
-            if (selectedMeta?.id != item.id) selectedMeta = null
+            val currentMetaKey = MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
+            if (selectedMetaItemKey != currentMetaKey) {
+                selectedMeta = null
+                selectedMetaItemKey = currentMetaKey
+            }
             try {
                 // TV series expose video IDs per episode. Do not query a show's
                 // base ID when its metadata provides episode-specific video IDs.
@@ -164,6 +169,7 @@ fun App() {
         } else {
             streams.clear()
             selectedMeta = null
+            selectedMetaItemKey = null
             streamsError = null
             loadingStreams = false
         }
@@ -861,7 +867,9 @@ fun App() {
                         LinearProgressIndicator(Modifier.fillMaxWidth())
                         Text("جارٍ جلب المصادر...", color = Color.LightGray)
                     }
-                    if (!loadingStreams && streams.isEmpty()) {
+                    val waitingForEpisode = selected.type.equals("series", ignoreCase = true) &&
+                        selectedMeta?.videos?.isNotEmpty() == true && selectedEpisode == null
+                    if (!loadingStreams && streams.isEmpty() && !waitingForEpisode) {
                         Text("لم تُرجع الإضافة مصادر لهذا العنوان.", color = Color.LightGray, fontSize = 13.sp)
                     } else if (streams.isNotEmpty()) {
                         FilterChip(selected = playableSourcesOnly, onClick = { playableSourcesOnly = !playableSourcesOnly },
