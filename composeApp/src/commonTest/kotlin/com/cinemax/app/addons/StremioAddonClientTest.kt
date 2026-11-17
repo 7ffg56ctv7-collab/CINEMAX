@@ -67,4 +67,28 @@ class StremioAddonClientTest {
         assertTrue(StremioAddonClient.isSupportedResource("stream"))
         assertFalse(StremioAddonClient.isSupportedResource("execute"))
     }
+    @Test
+    fun normalizesRootSlashBeforeAddonConfigurationQuery() {
+        assertEquals(
+            "https://addon.example/manifest.json?token=a%2Fb",
+            StremioAddonClient.manifestUrl("https://addon.example/?token=a%2Fb")
+        )
+    }
+
+    @Test
+    fun normalizesNestedSlashBeforeConfigurationQuery() {
+        assertEquals(
+            "https://addon.example/config/manifest.json?token=123",
+            StremioAddonClient.manifestUrl("https://addon.example/config/?token=123")
+        )
+    }
+
+    @Test
+    fun keepsAlreadyCanonicalManifestWithQuery() {
+        assertEquals(
+            "https://addon.example/manifest.json?token=123",
+            StremioAddonClient.manifestUrl("https://addon.example/manifest.json?token=123")
+        )
+    }
+
 }

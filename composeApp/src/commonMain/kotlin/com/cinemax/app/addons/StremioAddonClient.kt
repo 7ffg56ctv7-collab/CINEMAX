@@ -10,7 +10,7 @@ import io.ktor.http.encodeURLPathPart
  */
 object StremioAddonClient {
     fun manifestUrl(input: String): String? {
-        val value = input.trim().substringBefore('#').removeSuffix("/")
+        val value = input.trim().substringBefore('#')
         if (value.isBlank()) return null
         val parsed = try {
             Url(value)
@@ -21,11 +21,14 @@ object StremioAddonClient {
         val localDevelopment = parsed.protocol.name == "http" &&
             parsed.host in setOf("127.0.0.1", "localhost", "::1")
         if (!secure && !localDevelopment) return null
+        if (parsed.host.isBlank()) return null
         if (!parsed.user.isNullOrEmpty() || !parsed.password.isNullOrEmpty()) return null
         val queryIndex = value.indexOf('?').takeIf { it >= 0 } ?: value.length
-        val path = value.substring(0, queryIndex)
+        // Remove the slash from the path, not the complete URL; configured
+        // addons commonly append ?token=... after a trailing path slash.
+        val path = value.substring(0, queryIndex).removeSuffix("/")
         val query = value.substring(queryIndex)
-        return if (path.endsWith("/manifest.json")) value else "$path/manifest.json$query"
+        return if (path.endsWith("/manifest.json")) path + query else "$path/manifest.json$query"
     }
 
     /**
@@ -76,7 +79,7 @@ object StremioAddonClient {
         val secure = parsed.protocol.name == "https"
         val localDevelopment = parsed.protocol.name == "http" &&
             parsed.host in setOf("127.0.0.1", "localhost", "::1")
-        return (secure || localDevelopment) &&
+        return (secure || localDevelopment) && parsed.host.isNotBlank() &&
             parsed.user.isNullOrEmpty() && parsed.password.isNullOrEmpty()
     }
 
