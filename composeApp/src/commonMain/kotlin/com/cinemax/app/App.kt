@@ -92,6 +92,9 @@ fun App() {
     var streamsRefreshVersion by remember { mutableIntStateOf(0) }
     var playbackUrl by remember { mutableStateOf<String?>(null) }
     var playingItem by remember { mutableStateOf<StremioMetaPreview?>(null) }
+    var pendingSourceName by remember { mutableStateOf<String?>(null) }
+    var pendingSourceUrl by remember { mutableStateOf<String?>(null) }
+    var pendingSourceOwner by remember { mutableStateOf<StremioMetaPreview?>(null) }
 
     LaunchedEffect(selectedItem?.id, selectedItem?.type, selectedItem?.name, selectedItem?.releaseInfo, activeAddon?.id, activeAddon?.manifestUrl, addons.toList(), selectedEpisode?.id, streamsRefreshVersion) {
         val item = selectedItem
@@ -933,10 +936,11 @@ fun App() {
                                                     releaseInfo = meta?.releaseInfo ?: selected.releaseInfo,
                                                     imdbRating = meta?.imdbRating ?: selected.imdbRating
                                                 )
-                                                stream.name?.let { sourceName ->
-                                                    sourcePreferenceStore.save(selected, sourceName)
-                                                    preferredSourceName = sourceName
-                                                }
+                                                // Do not mark a stream as successful merely because
+                                                // the user tapped Play. Wait for real player progress.
+                                                pendingSourceName = stream.name ?: stream.title ?: "مصدر"
+                                                pendingSourceUrl = mediaUrl.trim()
+                                                pendingSourceOwner = selected
                                                 playbackUrl = mediaUrl.trim()
                                             } else status = "تم رفض رابط تشغيل غير آمن. يجب أن يستخدم HTTPS."
                                         }, modifier = Modifier.fillMaxWidth()) { Text("▶ تشغيل") }
@@ -952,7 +956,7 @@ fun App() {
         }
         playbackUrl?.let { mediaUrl ->
             val playbackItem = playingItem
-            Dialog(onDismissRequest = { playbackUrl = null; playingItem = null }) {
+            Dialog(onDismissRequest = { playbackUrl = null; playingItem = null; pendingSourceUrl = null; pendingSourceName = null; pendingSourceOwner = null }) {
                 Column(
                     modifier = Modifier.fillMaxWidth()
                         .background(Color.Black, RoundedCornerShape(16.dp))
@@ -962,7 +966,7 @@ fun App() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("مشغل RAIF", color = Color.White, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { playbackUrl = null; playingItem = null }) { Text("إغلاق") }
+                        TextButton(onClick = { playbackUrl = null; playingItem = null; pendingSourceUrl = null; pendingSourceName = null; pendingSourceOwner = null }) { Text("إغلاق") }
                     }
                     key(mediaUrl, playbackItem?.type, playbackItem?.id) {
                     NativeVideoPlayer(
@@ -973,6 +977,19 @@ fun App() {
                         } ?: 0L,
                         onProgress = { positionMillis, durationMillis ->
                             val item = playbackItem
+                            // A successfully advancing native player confirms the source.
+                            if (positionMillis > 0L && durationMillis > 0L &&
+                                pendingSourceUrl == mediaUrl && pendingSourceName != null
+                            ) {
+                                val owner = pendingSourceOwner
+                                val sourceName = pendingSourceName
+                                if (owner != null && sourceName != null) {
+                                    sourcePreferenceStore.save(owner, sourceName)
+                                }
+                                pendingSourceName = null
+                                pendingSourceUrl = null
+                                pendingSourceOwner = null
+                            }
                             if (item != null && preferences.rememberPlaybackPosition) {
                                 val progress = WatchProgress(
                                     item = item,
