@@ -68,11 +68,12 @@ class AddonRepository(
         require(query.isNotBlank()) { "Search query cannot be blank" }
         require(query.trim().length <= MAX_SEARCH_CHARS) { "Search query too long" }
         require(skip in 0..MAX_SKIP) { "Skip is outside supported range" }
-        return loadCatalog(
-            manifestUrl, type, catalogId,
+        val extra = if (skip == 0) {
+            mapOf("search" to query.trim())
+        } else {
             mapOf("search" to query.trim(), "skip" to skip.toString())
-                .filterValues { it != "0" }
-        )
+        }
+        return loadCatalog(manifestUrl, type, catalogId, extra)
     }
 
     suspend fun loadMeta(manifestUrl: String, type: String, mediaId: String): StremioMeta? {
