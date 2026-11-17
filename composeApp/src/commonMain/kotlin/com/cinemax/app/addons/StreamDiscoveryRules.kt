@@ -50,20 +50,24 @@ object StreamDiscoveryRules {
      */
     fun rankAndDeduplicate(sources: List<StremioStream>): List<StremioStream> {
         val ranked = sources
-            .filter { it.url == null || StremioAddonClient.isSafeMediaUrl(it.url) }
+            .filter { it.url.isNullOrBlank() || StremioAddonClient.isSafeMediaUrl(it.url.trim()) }
             .sortedWith(
                 compareByDescending<StremioStream> { it.url?.startsWith("https://", true) == true }
                     .thenByDescending { qualityRank(it) }
             )
-        val identifiers = mutableSetOf<String>()
+        val seenUrls = mutableSetOf<String>()
+        val seenHashes = mutableSetOf<String>()
         return ranked.filter { stream ->
             val url = stream.url?.trim().orEmpty()
             val hash = stream.infoHash?.trim()?.lowercase().orEmpty()
-            when {
-                url.isNotEmpty() -> identifiers.add("url:" + url)
-                hash.isNotEmpty() -> identifiers.add("torrent:" + hash + ":" + (stream.fileIdx ?: 0))
-                else -> true
+            val fileIdentity = if (hash.isNotEmpty()) hash + ":" + (stream.fileIdx ?: 0) else ""
+            val repeated = (url.isNotEmpty() && url in seenUrls) ||
+                (fileIdentity.isNotEmpty() && fileIdentity in seenHashes)
+            if (!repeated) {
+                if (url.isNotEmpty()) seenUrls.add(url)
+                if (fileIdentity.isNotEmpty()) seenHashes.add(fileIdentity)
             }
+            !repeated
         }
     }
 

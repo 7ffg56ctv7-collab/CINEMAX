@@ -73,7 +73,8 @@ class AddonRepository(
         val response = http.get(url)
         require(response.status.isSuccess()) { "Addon streams request failed: ${response.status.value}" }
         return json.decodeFromString<StremioStreamResponse>(response.bodyAsText()).streams
-            .filter { it.url == null || StremioAddonClient.isSafeMediaUrl(it.url) }
+            .filter { it.url.isNullOrBlank() || StremioAddonClient.isSafeMediaUrl(it.url.trim()) }
+            .map { stream -> stream.copy(url = stream.url?.trim()?.takeIf { it.isNotEmpty() }) }
     }
 
     /**

@@ -109,4 +109,25 @@ class StreamDiscoveryRulesTest {
         assertFalse(StreamDiscoveryRules.supportsCanonicalDirectStream(constrained, "movie", "tt1234567"))
     }
 
+    @Test fun sameInfohashDeduplicatesEvenWhenProviderUrlsDiffer() {
+        val sources = listOf(
+            StremioStream(name = "First", url = "https://cdn-a.example/video", infoHash = "AABB", fileIdx = 3),
+            StremioStream(name = "Other", url = "https://cdn-b.example/video", infoHash = "aabb", fileIdx = 3)
+        )
+        assertEquals(1, StreamDiscoveryRules.rankAndDeduplicate(sources).size)
+    }
+
+    @Test fun emptyDirectUrlDoesNotDiscardTorrentInfohash() {
+        val streams = listOf(StremioStream(name = "Torrent", url = " ", infoHash = "aabb"))
+        assertEquals(1, StreamDiscoveryRules.rankAndDeduplicate(streams).size)
+    }
+
+    @Test fun distinctTorrentFileIndexesRemainSeparate() {
+        val streams = listOf(
+            StremioStream(name = "Part 1", infoHash = "aabb", fileIdx = 1),
+            StremioStream(name = "Part 2", infoHash = "aabb", fileIdx = 2)
+        )
+        assertEquals(2, StreamDiscoveryRules.rankAndDeduplicate(streams).size)
+    }
+
 }
