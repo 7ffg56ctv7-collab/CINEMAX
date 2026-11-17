@@ -51,6 +51,7 @@ fun App() {
     val favoritesStore = remember { FavoritesStore() }
     val sourcePreferenceStore = remember { SourcePreferenceStore() }
     val sourceHealthStore = remember { SourceHealthStore() }
+    val sourceStartupStore = remember { SourceStartupStore() }
     val favoriteItems = remember { mutableStateListOf<com.cinemax.app.addons.StremioMetaPreview>().apply { addAll(favoritesStore.load()) } }
     val favoriteIds = favoriteItems.map { MediaIdentity.storageKey(it) }.toSet()
     val watchProgressStore = remember { WatchProgressStore() }
@@ -96,6 +97,8 @@ fun App() {
     var pendingSourceName by remember { mutableStateOf<String?>(null) }
     var pendingSourceUrl by remember { mutableStateOf<String?>(null) }
     var pendingSourceOwner by remember { mutableStateOf<StremioMetaPreview?>(null) }
+    var pendingSourceStartedAt by remember { mutableStateOf(0L) }
+    var sourceStartupVersion by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(selectedItem?.id, selectedItem?.type, selectedItem?.name, selectedItem?.releaseInfo, activeAddon?.id, activeAddon?.manifestUrl, addons.toList(), selectedEpisode?.id, streamsRefreshVersion) {
         val item = selectedItem
@@ -802,6 +805,9 @@ fun App() {
 
         selectedItem?.let { selected ->
             val sourceContextItem = selectedEpisode?.let { EpisodeCatalog.playbackPreview(selected, it) } ?: selected
+            val startupTimings = remember(sourceContextItem.id, sourceContextItem.name, sourceContextItem.releaseInfo, sourceStartupVersion) {
+                sourceStartupStore.durations(sourceContextItem)
+            }
             var brokenSourceNames by remember(sourceContextItem.id, sourceContextItem.name, sourceContextItem.releaseInfo) {
                 mutableStateOf(sourceHealthStore.brokenLabels(sourceContextItem))
             }
@@ -972,7 +978,7 @@ fun App() {
                         val visibleStreams = DiscoveryPresentation.sortedStreams(
                             streams.toList(), playableSourcesOnly, preferredSourceName,
                             streamQualityFilter, streamProviderFilter, brokenSourceNames,
-                            streamAudioFilter, streamSubtitleFilter
+                            streamAudioFilter, streamSubtitleFilter, startupTimings
                         )
                         Text("المصادر المعروضة: " + visibleStreams.size, color = Color.LightGray, fontSize = 11.sp)
                         if (visibleStreams.isEmpty()) {
@@ -983,6 +989,9 @@ fun App() {
                                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                     Text("${index + 1}. ${stream.name ?: stream.title ?: "مصدر"}", color = Color.White, fontWeight = FontWeight.SemiBold)
                                     val sourceLabel = (stream.name ?: stream.title ?: "مصدر").take(256)
+                                    startupTimings[sourceLabel]?.let { duration ->
+                                        Text("آخر بدء ناجح: ≈" + (duration / 1000) + " ثانية", color = Color.LightGray, fontSize = 11.sp)
+                                    }
                                     val isReportedBroken = sourceLabel in brokenSourceNames
                                     if (stream.name == preferredSourceName) Text("★ آخر مصدر نجح", color = appAccent, fontSize = 11.sp)
                                     if (isReportedBroken) {
@@ -1027,6 +1036,7 @@ fun App() {
                                                 pendingSourceName = stream.name ?: stream.title ?: "مصدر"
                                                 pendingSourceUrl = mediaUrl.trim()
                                                 pendingSourceOwner = sourceContextItem
+                                                pendingSourceStartedAt = Clock.System.now().toEpochMilliseconds()
                                                 playbackUrl = mediaUrl.trim()
                                             } else status = "تم رفض رابط تشغيل غير آمن. يجب أن يستخدم HTTPS."
                                         }, modifier = Modifier.fillMaxWidth()) { Text("▶ تشغيل") }
@@ -1071,6 +1081,11 @@ fun App() {
                                 val sourceName = pendingSourceName
                                 if (owner != null && sourceName != null) {
                                     sourcePreferenceStore.save(owner, sourceName)
+                                    sourceStartupStore.recordSuccess(
+                                        owner, sourceName, pendingSourceStartedAt,
+                                        Clock.System.now().toEpochMilliseconds()
+                                    )
+                                    sourceStartupVersion++
                                 }
                                 pendingSourceName = null
                                 pendingSourceUrl = null
