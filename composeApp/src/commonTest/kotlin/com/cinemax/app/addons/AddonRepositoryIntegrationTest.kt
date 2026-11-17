@@ -309,4 +309,19 @@ class AddonRepositoryIntegrationTest {
         } finally { client.close() }
     }
 
+    @Test fun literalZeroSearchStringIsNotMistakenForZeroSkip() = runBlocking {
+        var requested = ""
+        val client = HttpClient(MockEngine { request ->
+            requested = request.url.toString()
+            respond("""{"metas":[]}""", headers = header)
+        }) { expectSuccess = true }
+        try {
+            AddonRepository(client).searchCatalog(
+                "https://primary.example/manifest.json", "movie", "top", "0"
+            )
+            assertTrue("search=0" in requested)
+            assertTrue("skip=" !in requested)
+        } finally { client.close() }
+    }
+
 }
