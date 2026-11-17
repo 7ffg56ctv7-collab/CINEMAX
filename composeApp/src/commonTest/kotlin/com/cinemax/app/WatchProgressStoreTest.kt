@@ -98,4 +98,29 @@ class WatchProgressStoreTest {
         assertTrue(store.load().isEmpty())
     }
 
+    @Test fun savedEpisodeProgressKeepsEachEpisodeSeparate() {
+        val store = WatchProgressStore(MapSettings())
+        val show = StremioMetaPreview("tt1234567", "series", "Show")
+        val first = com.cinemax.app.core.EpisodeCatalog.playbackPreview(show,
+            com.cinemax.app.core.StremioEpisode("local-ep-a", "One", 1, 1))
+        val second = com.cinemax.app.core.EpisodeCatalog.playbackPreview(show,
+            com.cinemax.app.core.StremioEpisode("local-ep-b", "Two", 1, 2))
+        store.save(WatchProgress(first, 10_000L, 120_000L, 1L))
+        store.save(WatchProgress(second, 20_000L, 120_000L, 2L))
+        assertEquals(2, store.load().size)
+    }
+
+    @Test fun sameEpisodeFromDifferentAddonsReplacesProgressNotDuplicates() {
+        val store = WatchProgressStore(MapSettings())
+        val show = StremioMetaPreview("tt1234567", "series", "Show")
+        val a = com.cinemax.app.core.EpisodeCatalog.playbackPreview(show,
+            com.cinemax.app.core.StremioEpisode("local-a", "One", 1, 1))
+        val b = com.cinemax.app.core.EpisodeCatalog.playbackPreview(show,
+            com.cinemax.app.core.StremioEpisode("local-b", "Uno", 1, 1))
+        store.save(WatchProgress(a, 10_000L, 120_000L, 1L))
+        store.save(WatchProgress(b, 40_000L, 120_000L, 2L))
+        assertEquals(1, store.load().size)
+        assertEquals(40_000L, store.load().single().positionMillis)
+    }
+
 }

@@ -50,4 +50,16 @@ class SourcePreferenceStoreTest {
         assertEquals(256, store.load(first)?.length)
     }
 
+    @Test fun sourcePreferencesDoNotBleedBetweenEpisodes() {
+        val store = SourcePreferenceStore(MapSettings())
+        val series = StremioMetaPreview("tt1234567", "series", "Show")
+        val first = com.cinemax.app.core.EpisodeCatalog.playbackPreview(series,
+            com.cinemax.app.core.StremioEpisode("ep-1", "One", 1, 1))
+        val second = com.cinemax.app.core.EpisodeCatalog.playbackPreview(series,
+            com.cinemax.app.core.StremioEpisode("ep-2", "Two", 1, 2))
+        store.save(first, "Provider A")
+        assertEquals("Provider A", store.load(first))
+        assertNull(store.load(second))
+    }
+
 }

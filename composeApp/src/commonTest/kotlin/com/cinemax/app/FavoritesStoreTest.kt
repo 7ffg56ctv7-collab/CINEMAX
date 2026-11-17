@@ -65,4 +65,15 @@ class FavoritesStoreTest {
         assertEquals("id1001", store.load().last().id)
     }
 
+    @Test fun favoriteEpisodesOfSameSeriesHaveIndependentKeys() {
+        val store = FavoritesStore(MapSettings())
+        val show = StremioMetaPreview("tt1234567", "series", "Show")
+        val first = com.cinemax.app.core.EpisodeCatalog.playbackPreview(show,
+            com.cinemax.app.core.StremioEpisode("local-1", "One", 1, 1))
+        val second = com.cinemax.app.core.EpisodeCatalog.playbackPreview(show,
+            com.cinemax.app.core.StremioEpisode("local-2", "Two", 1, 2))
+        store.save(listOf(first,second))
+        assertEquals(2, store.load().size)
+    }
+
 }

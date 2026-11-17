@@ -120,6 +120,36 @@ class MediaIdentityTest {
             MediaIdentity.key(type = " ", title = "Dune", releaseInfo = "2021")
         })
     }
+    @Test fun canonicalImdbEpisodeHasStableIdentityDespiteRename() {
+        val english = MediaIdentity.key(type = "series", id = "tt1234567:1:2", title = "Episode 2")
+        val arabic = MediaIdentity.key(type = "series", id = "TT1234567:1:2", title = "الحلقة الثانية")
+        assertEquals("series:imdb-episode:tt1234567:1:2", english)
+        assertEquals(english, arabic)
+    }
+
+    @Test fun imdbEpisodeDoesNotMergeIntoParentSeries() {
+        kotlin.test.assertNotEquals(MediaIdentity.key(type = "series", id = "tt1234567"),
+            MediaIdentity.key(type = "series", id = "tt1234567:1:1"))
+    }
+
+    @Test fun localEpisodeIdsWithSharedParentAndNumberMerge() {
+        val sourceA = com.cinemax.app.addons.StremioMetaPreview(
+            "local-a", "series", "Show - Episode", seriesId = "tt1234567",
+            seriesName = "Show", episodeSeason = 1, episodeNumber = 2
+        )
+        val sourceB = sourceA.copy(id = "local-b", name = "الحلقة الثانية")
+        assertEquals(MediaIdentity.storageKey(sourceA), MediaIdentity.storageKey(sourceB))
+    }
+
+    @Test fun differentSeasonsRemainSeparateEvenWhenLocalIdIsSame() {
+        val one = com.cinemax.app.addons.StremioMetaPreview(
+            "same", "series", "Episode 1", seriesId = "tt1234567",
+            seriesName = "Show", episodeSeason = 1, episodeNumber = 1
+        )
+        kotlin.test.assertNotEquals(MediaIdentity.storageKey(one),
+            MediaIdentity.storageKey(one.copy(episodeSeason = 2)))
+    }
+
 }
 
 class StremioAddonClientSecurityTest {

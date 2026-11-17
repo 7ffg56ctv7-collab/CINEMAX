@@ -98,4 +98,61 @@ class EpisodeCatalogTest {
         assertEquals(1, meta.videos.size)
     }
 
+    @Test fun savedEpisodeRestoresItsParentSeriesAndPosition() {
+        val series = StremioMetaPreview("tt1234567", "series", "The Show", releaseInfo = "2025")
+        val episode = StremioEpisode("tt1234567:1:2", "Episode Two", 1, 2)
+        val saved = EpisodeCatalog.playbackPreview(series, episode)
+        assertEquals("tt1234567", saved.seriesId)
+        assertEquals(1, saved.episodeSeason)
+        assertEquals(2, saved.episodeNumber)
+        val restored = EpisodeCatalog.restoreSelection(saved)
+        assertEquals(series, restored?.first)
+        assertEquals(episode.id, restored?.second?.id)
+        assertEquals("Episode Two", restored?.second?.title)
+    }
+
+    @Test fun seriesWithoutResumeContextDoesNotFalselyRestoreEpisode() {
+        assertEquals(null, EpisodeCatalog.restoreSelection(
+            StremioMetaPreview("tt1234567", "series", "The Show")))
+    }
+
+    @Test fun malformedSavedEpisodeContextIsRejected() {
+        val incomplete = StremioMetaPreview("opaque", "series", "Episode", seriesId = "parent")
+        assertEquals(null, EpisodeCatalog.restoreSelection(incomplete))
+        assertEquals(null, EpisodeCatalog.restoreSelection(incomplete.copy(seriesName = " ")))
+    }
+
+    @Test fun matchesAcrossProviderLocalEpisodeIdsBySeasonAndNumber() {
+        val a = StremioEpisode("a-episode", "A name", 1, 2)
+        val b = StremioEpisode("b-episode", "B name", 1, 2)
+        assertEquals(b, EpisodeCatalog.matchingEpisode(listOf(b), a))
+    }
+
+    @Test fun mismatchedSeasonOrEpisodeDoesNotReturnWrongVideo() {
+        val target = StremioEpisode("a", null, 2, 3)
+        assertEquals(null, EpisodeCatalog.matchingEpisode(listOf(
+            StremioEpisode("b", null, 1, 3),
+            StremioEpisode("c", null, 2, 2)
+        ), target))
+    }
+
+    @Test fun nextEpisodeReturnsOrderedEpisodeAcrossSeasons() {
+        val first = StremioEpisode("a", null, 1, 2)
+        val second = StremioEpisode("b", null, 2, 1)
+        val third = StremioEpisode("c", null, 2, 2)
+        assertEquals("b", EpisodeCatalog.nextEpisode(listOf(third,first,second), first)?.id)
+        assertEquals("c", EpisodeCatalog.nextEpisode(listOf(third,first,second), second)?.id)
+        assertEquals(null, EpisodeCatalog.nextEpisode(listOf(third,first,second), third))
+    }
+
+    @Test fun savedEpisodeMetadataSurvivesSerialization() {
+        val series = StremioMetaPreview("tt1234567", "series", "The Show")
+        val saved = EpisodeCatalog.playbackPreview(series, StremioEpisode("part-1", "Pilot", 1, 1))
+        val json = kotlinx.serialization.json.Json
+        val data = json.encodeToString(StremioMetaPreview.serializer(), saved)
+        val decoded = json.decodeFromString(StremioMetaPreview.serializer(), data)
+        assertEquals(saved, decoded)
+        assertEquals("tt1234567", EpisodeCatalog.restoreSelection(decoded)?.first?.id)
+    }
+
 }
