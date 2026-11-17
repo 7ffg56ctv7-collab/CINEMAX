@@ -120,9 +120,15 @@ object DiscoveryPresentation {
 
     fun audioLabel(stream: StremioStream): String? {
         val label = (stream.name.orEmpty() + " " + stream.title.orEmpty()).lowercase()
+        val subtitlesMentioned = arabicSub.containsMatchIn(label) ||
+            englishSub.containsMatchIn(label)
         return when {
-            "مدبلج" in label || "صوت عربي" in label || arabicAudio.containsMatchIn(label) -> "عربي"
-            "صوت انجليزي" in label || englishAudio.containsMatchIn(label) -> "English"
+            "مدبلج" in label || "صوت عربي" in label ||
+                (arabicAudio.containsMatchIn(label) &&
+                    (!subtitlesMentioned || "arabic audio" in label)) -> "عربي"
+            "صوت انجليزي" in label ||
+                (englishAudio.containsMatchIn(label) &&
+                    (!subtitlesMentioned || "english audio" in label)) -> "English"
             else -> null
         }
     }
@@ -161,12 +167,16 @@ object DiscoveryPresentation {
         preferredName: String? = null,
         quality: String? = null,
         provider: String? = null,
-        brokenLabels: Set<String> = emptySet()
+        brokenLabels: Set<String> = emptySet(),
+        audio: String? = null,
+        subtitle: String? = null
     ): List<StremioStream> =
         streams.asSequence()
             .filter { !playableOnly || isPlayable(it) }
             .filter { quality == null || qualityLabel(it) == quality }
             .filter { provider == null || providerLabel(it) == provider }
+            .filter { audio == null || audioLabel(it) == audio }
+            .filter { subtitle == null || subtitleLabel(it) == subtitle }
             .sortedWith(
                 compareByDescending<StremioStream> { isPlayable(it) }
                     .thenBy { (it.name ?: it.title ?: "مصدر") in brokenLabels }
