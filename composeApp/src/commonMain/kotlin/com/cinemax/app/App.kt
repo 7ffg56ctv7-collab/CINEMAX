@@ -124,7 +124,8 @@ fun App() {
                 // Reveal the selected provider's sources immediately while other
                 // providers are discovered. An addon's metadata endpoint may be slow.
                 val preferredStreams = try {
-                    repository.loadStreams(addon.manifestUrl, playableItem.type, playableItem.id)
+                    selectedEpisode?.embeddedStreams?.takeIf { it.isNotEmpty() }
+                        ?: repository.loadStreams(addon.manifestUrl, playableItem.type, playableItem.id)
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error
                     emptyList()
