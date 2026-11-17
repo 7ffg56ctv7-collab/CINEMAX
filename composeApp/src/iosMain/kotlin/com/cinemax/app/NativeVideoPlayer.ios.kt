@@ -73,6 +73,14 @@ actual fun NativeVideoPlayer(
                 showsPlaybackControls = true
             }
         },
+        // Compose may reuse the same AVPlayerViewController when a new URL is
+        // selected. The controller must be rebound to the new AVPlayer; changing
+        // remember(url) alone does not update the native view controller.
+        update = { controller ->
+            if (controller.player !== player) {
+                controller.player = player
+            }
+        },
         modifier = modifier
     )
 }
