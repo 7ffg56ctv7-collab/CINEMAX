@@ -285,7 +285,19 @@ fun App() {
         background = appBackground, surface = Panel, primary = appAccent,
         onBackground = Color.White, onSurface = Color.White
     )) {
-        Column(Modifier.fillMaxSize().background(appBackground).padding(horizontal = 18.dp, vertical = 16.dp)) {
+        val visibleItems = DiscoveryPresentation.visible(
+            if (showFavoritesOnly) favoriteItems.toList() else catalogItems.toList(),
+            mediaTypeFilter, localFilterQuery, catalogSort
+        )
+        // One vertical scroll surface lets the whole iPhone screen remain accessible
+        // even when favorite lists, catalog controls and continue-watching are expanded.
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().background(appBackground)
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            item {
+                Column(Modifier.fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("RAIF", fontSize = 25.sp, fontWeight = FontWeight.Black, color = Color.White)
                 Spacer(Modifier.weight(1f))
@@ -540,20 +552,23 @@ fun App() {
                 }
                 Spacer(Modifier.height(8.dp))
             }
-            val visibleItems = DiscoveryPresentation.visible(
-                if (showFavoritesOnly) favoriteItems.toList() else catalogItems.toList(),
-                mediaTypeFilter, localFilterQuery, catalogSort
-            )
-            Text("نتائج العرض: ${visibleItems.size}", color = Color.LightGray, fontSize = 12.sp)
+                    Text("نتائج العرض: ${visibleItems.size}", color = Color.LightGray, fontSize = 12.sp)
+                }
+            }
             if (visibleItems.isEmpty()) {
-                val hasUnfilteredItems = if (showFavoritesOnly) favoriteItems.isNotEmpty() else catalogItems.isNotEmpty()
-                Text(if (hasUnfilteredItems) "لا توجد نتائج تطابق التصفية الحالية." else if (showFavoritesOnly) "قائمتك فارغة حاليًا. افتح تفاصيل أي عنوان وأضفه إلى قائمتك." else "ستظهر عناصر الكتالوج هنا بعد تثبيت إضافة توفر كتالوجًا.", color = Color.LightGray, fontSize = 13.sp)
+                item {
+                    val hasUnfilteredItems = if (showFavoritesOnly) favoriteItems.isNotEmpty() else catalogItems.isNotEmpty()
+                    Text(
+                        if (hasUnfilteredItems) "لا توجد نتائج تطابق التصفية الحالية."
+                        else if (showFavoritesOnly) "قائمتك فارغة حاليًا. افتح تفاصيل أي عنوان وأضفه إلى قائمتك."
+                        else "ستظهر عناصر الكتالوج هنا بعد تثبيت إضافة توفر كتالوجًا.",
+                        color = Color.LightGray, fontSize = 13.sp
+                    )
+                }
             } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(visibleItems) { item ->
+                items(visibleItems, key = { item ->
+                    MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
+                }) { item -> item ->
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable {
                                 selectedEpisode = null
@@ -583,7 +598,8 @@ fun App() {
                                 }
                             }
                         }
-                    }
+                                    }
+            }
                     if (activeCatalogSupportsSkip && !showFavoritesOnly && moreCatalogPages) {
                         item {
                             Button(
@@ -632,8 +648,6 @@ fun App() {
                             }
                         }
                     }
-                }
-            }
         }
 
 
