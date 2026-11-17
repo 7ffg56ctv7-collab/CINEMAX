@@ -668,8 +668,11 @@ fun App() {
                                     updatedAtEpochMillis = Clock.System.now().toEpochMilliseconds()
                                 )
                                 watchProgressStore.save(progress)
-                                watchProgressItems.removeAll { it.item.id == item.id }
-                                if (positionMillis < durationMillis - 15_000L) watchProgressItems.add(0, progress)
+                                // The store owns completion, sorting and the 30-item limit.
+                                // Reload so the visible list always matches persisted history.
+                                val latestProgress = watchProgressStore.load()
+                                watchProgressItems.clear()
+                                watchProgressItems.addAll(latestProgress)
                             }
                         }
                     )
