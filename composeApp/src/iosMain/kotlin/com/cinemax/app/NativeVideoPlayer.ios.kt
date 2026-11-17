@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.UIKitViewController
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -29,6 +30,8 @@ actual fun NativeVideoPlayer(
     initialPositionMillis: Long,
     onProgress: (positionMillis: Long, durationMillis: Long) -> Unit
 ) {
+    // Keep progress reporting wired to the latest callback after recomposition.
+    val currentOnProgress = rememberUpdatedState(onProgress)
     val player = remember(url) {
         AVPlayer(uRL = NSURL(string = url)).apply {
             if (initialPositionMillis > 0L) {
@@ -44,7 +47,7 @@ actual fun NativeVideoPlayer(
             if (positionSeconds.isFinite() && durationSeconds.isFinite() &&
                 positionSeconds > 0.0 && durationSeconds > 0.0
             ) {
-                onProgress((positionSeconds * 1000.0).toLong(), (durationSeconds * 1000.0).toLong())
+                currentOnProgress.value((positionSeconds * 1000.0).toLong(), (durationSeconds * 1000.0).toLong())
             }
             delay(5_000L)
         }
@@ -57,6 +60,7 @@ actual fun NativeVideoPlayer(
             AVPlayerViewController().apply {
                 this.player = player
                 showsPlaybackControls = true
+                allowsPictureInPicturePlayback = true
             }
         },
         modifier = modifier
