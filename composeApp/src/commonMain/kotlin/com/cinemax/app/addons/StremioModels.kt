@@ -41,7 +41,13 @@ data class StremioMetaPreview(
     val background: String? = null,
     val description: String? = null,
     val releaseInfo: String? = null,
-    val imdbRating: String? = null
+    val imdbRating: String? = null,
+    // Backward-compatible resume context for individual TV episodes.
+    val seriesId: String? = null,
+    val seriesName: String? = null,
+    val episodeSeason: Int? = null,
+    val episodeNumber: Int? = null,
+    val episodeTitle: String? = null
 )
 
 @Serializable
