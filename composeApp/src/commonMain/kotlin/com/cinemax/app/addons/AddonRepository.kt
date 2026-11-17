@@ -5,6 +5,7 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import kotlinx.serialization.json.Json
 import com.cinemax.app.core.MediaIdentity
+import com.cinemax.app.core.EpisodeCatalog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -91,6 +92,7 @@ class AddonRepository(
         val preferred = addons.firstOrNull { it.id == preferredAddonId }
         val ordered = (listOfNotNull(preferred) + addons.filterNot { it.id == preferredAddonId })
             .distinctBy { it.id to it.manifestUrl }
+            .take(MAX_DISCOVERY_ADDONS)
         val semaphore = Semaphore(MAX_PARALLEL_ADDONS)
         val batches = ordered.map { addon ->
             async {
@@ -125,6 +127,9 @@ class AddonRepository(
         selected: StremioMetaPreview
     ): List<StremioStream> {
         val manifest = loadManifest(addon.manifestUrl)
+        // A saved episode has an addon-local stream ID and a parent show ID.
+        // Resolve matching SHOWS in other catalogs, then find their exact episode.
+        val restoredEpisode = EpisodeCatalog.restoreSelection(selected)
         if (StreamDiscoveryRules.supportsCanonicalDirectStream(manifest, selected.type, selected.id)) {
             try {
                 val direct = loadStreams(addon.manifestUrl, selected.type, selected.id)
@@ -134,20 +139,21 @@ class AddonRepository(
             }
         }
 
+        val lookup = restoredEpisode?.first ?: selected
         val selectedKey = MediaIdentity.key(
-            type = selected.type, id = selected.id,
-            title = selected.name, releaseInfo = selected.releaseInfo
+            type = lookup.type, id = lookup.id,
+            title = lookup.name, releaseInfo = lookup.releaseInfo
         ) ?: return emptyList()
         val matches = linkedMapOf<String, StremioMetaPreview>()
         manifest.catalogs
             .asSequence()
-            .filter { it.type.equals(selected.type, ignoreCase = true) }
+            .filter { it.type.equals(lookup.type, ignoreCase = true) }
             .take(MAX_CATALOGS_PER_ADDON)
             .forEach { catalog ->
                 val candidates = linkedMapOf<String, StremioMetaPreview>()
                 if (catalog.extra.any { it.name.equals("search", ignoreCase = true) }) {
                     try {
-                        searchCatalog(addon.manifestUrl, catalog.type, catalog.id, selected.name)
+                        searchCatalog(addon.manifestUrl, catalog.type, catalog.id, lookup.name)
                             .forEach { candidates[it.type + ":" + it.id] = it }
                     } catch (error: Exception) {
                         if (error is CancellationException) throw error
@@ -169,9 +175,20 @@ class AddonRepository(
                     }
                 }
             }
-        return matches.values.flatMap { matched ->
+        return matches.values.take(MAX_MATCHED_TITLES).flatMap { matched ->
             try {
-                loadStreams(addon.manifestUrl, matched.type, matched.id)
+                val episode = restoredEpisode?.second
+                if (episode == null) {
+                    loadStreams(addon.manifestUrl, matched.type, matched.id)
+                } else {
+                    val meta = loadMeta(addon.manifestUrl, matched.type, matched.id)
+                    val candidate = EpisodeCatalog.matchingEpisode(
+                        EpisodeCatalog.parse(meta?.videos.orEmpty()), episode
+                    )
+                    if (candidate == null) emptyList()
+                    else if (candidate.embeddedStreams.isNotEmpty()) candidate.embeddedStreams
+                    else loadStreams(addon.manifestUrl, matched.type, candidate.id)
+                }
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 emptyList()
@@ -181,6 +198,8 @@ class AddonRepository(
 
     private companion object {
         const val MAX_PARALLEL_ADDONS = 3
+        const val MAX_DISCOVERY_ADDONS = 12
+        const val MAX_MATCHED_TITLES = 4
         const val MAX_CATALOGS_PER_ADDON = 8
         const val ADDON_DISCOVERY_TIMEOUT_MS = 15_000L
     }
