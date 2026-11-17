@@ -99,4 +99,90 @@ class DiscoveryPresentationTest {
         ).isEmpty())
     }
 
+    @Test fun arabicAlefVariantsMatchWithoutExactSpelling() {
+        val items = listOf(StremioMetaPreview("tt1234567", "movie", "إشارة"))
+        assertEquals(1, DiscoveryPresentation.visible(items, null, "اشارة", CatalogSort.Source).size)
+    }
+
+    @Test fun arabicDiacriticsAreIgnoredInSearch() {
+        val items = listOf(StremioMetaPreview("tt1234567", "movie", "المُسافِر"))
+        assertEquals(1, DiscoveryPresentation.visible(items, null, "المسافر", CatalogSort.Source).size)
+    }
+
+    @Test fun alefMaqsuraAndYaaMatch() {
+        val items = listOf(StremioMetaPreview("tt1234567", "movie", "ليلى"))
+        assertEquals(1, DiscoveryPresentation.visible(items, null, "ليلي", CatalogSort.Source).size)
+    }
+
+    @Test fun searchNeedsAllTermsAcrossMetadataFields() {
+        val items = listOf(StremioMetaPreview("tt1234567", "movie", "Arrival", description = "First contact", releaseInfo = "2016"))
+        assertEquals(1, DiscoveryPresentation.visible(items, null, "arrival 2016", CatalogSort.Source).size)
+        assertEquals(0, DiscoveryPresentation.visible(items, null, "arrival 2022", CatalogSort.Source).size)
+    }
+
+    @Test fun searchByYearAloneUsesReleaseInfo() {
+        val items = listOf(StremioMetaPreview("tt1234567", "movie", "Arrival", releaseInfo = "2016"))
+        assertEquals(1, DiscoveryPresentation.visible(items, null, "2016", CatalogSort.Source).size)
+    }
+
+    @Test fun oldestSortPutsUnknownYearsLast() {
+        val items = listOf(
+            StremioMetaPreview("a", "movie", "Unknown"),
+            StremioMetaPreview("b", "movie", "Old", releaseInfo = "1999"),
+            StremioMetaPreview("c", "movie", "New", releaseInfo = "2023")
+        )
+        assertEquals(listOf("Old", "New", "Unknown"), DiscoveryPresentation.visible(items, null, "", CatalogSort.Oldest).map { it.name })
+    }
+
+    @Test fun ratingSortHandlesMissingAndInvalidRatings() {
+        val items = listOf(
+            StremioMetaPreview("a", "movie", "Poor", imdbRating = "2.5"),
+            StremioMetaPreview("b", "movie", "Strong", imdbRating = "9,1"),
+            StremioMetaPreview("c", "movie", "Unrated", imdbRating = "N/A")
+        )
+        assertEquals(listOf("Strong", "Poor", "Unrated"), DiscoveryPresentation.visible(items, null, "", CatalogSort.Rating).map { it.name })
+    }
+
+    @Test fun recognizesAdvertisedVideoCodecs() {
+        assertEquals("H.265", DiscoveryPresentation.codecLabel(StremioStream(name = "2160p HEVC")))
+        assertEquals("H.264", DiscoveryPresentation.codecLabel(StremioStream(name = "1080p x264")))
+        assertEquals("AV1", DiscoveryPresentation.codecLabel(StremioStream(name = "1080p AV1")))
+        assertEquals("VP9", DiscoveryPresentation.codecLabel(StremioStream(name = "720p VP9")))
+        assertEquals(null, DiscoveryPresentation.codecLabel(StremioStream(name = "Server")))
+    }
+
+    @Test fun recognizesAdvertisedHdrFormatsWithoutConfusingHigherPriority() {
+        assertEquals("Dolby Vision", DiscoveryPresentation.hdrLabel(StremioStream(name = "2160p DV HDR10")))
+        assertEquals("HDR10+", DiscoveryPresentation.hdrLabel(StremioStream(title = "HDR10+ 4K")))
+        assertEquals("HDR10", DiscoveryPresentation.hdrLabel(StremioStream(name = "HDR10")))
+        assertEquals("HDR", DiscoveryPresentation.hdrLabel(StremioStream(name = "HDR")))
+    }
+
+    @Test fun recognizesAudioAndSubtitleLanguagesAsLabelsOnly() {
+        assertEquals("عربي", DiscoveryPresentation.audioLabel(StremioStream(title = "صوت عربي")))
+        assertEquals("English", DiscoveryPresentation.audioLabel(StremioStream(name = "EN Audio 1080p")))
+        assertEquals("عربية", DiscoveryPresentation.subtitleLabel(StremioStream(name = "مترجم")))
+        assertEquals("English", DiscoveryPresentation.subtitleLabel(StremioStream(name = "English Subtitles")))
+    }
+
+    @Test fun providerFiltersDoNotMixStreamNames() {
+        val streams = listOf(
+            StremioStream(name = "Cinema • 4K", url = "https://cdn.example/4k"),
+            StremioStream(name = "Other • 720p", url = "https://cdn.example/720"),
+            StremioStream(name = "Cinema • 1080p", url = "https://cdn.example/1080")
+        )
+        assertEquals(listOf("Cinema", "Other"), DiscoveryPresentation.availableProviders(streams))
+        assertEquals(2, DiscoveryPresentation.sortedStreams(streams, true, provider = "Cinema").size)
+    }
+
+    @Test fun sourceFiltersComposeAcrossProviderAndQuality() {
+        val streams = listOf(
+            StremioStream(name = "Cinema • 4K", url = "https://cdn.example/4k"),
+            StremioStream(name = "Cinema • 1080p", url = "https://cdn.example/1080"),
+            StremioStream(name = "Other • 1080p", url = "https://cdn.example/other")
+        )
+        assertEquals(listOf("Cinema • 1080p"),
+            DiscoveryPresentation.sortedStreams(streams, true, quality = "1080p", provider = "Cinema").map { it.name })
+    }
+
 }
