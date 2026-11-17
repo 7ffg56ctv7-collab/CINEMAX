@@ -35,7 +35,7 @@ class WatchProgressStore(
     fun save(progress: WatchProgress) {
         if (progress.durationMillis <= 0L || progress.positionMillis < 0L || progress.item.id.isBlank()) return
         val current = load().filterNot { it.item.id == progress.item.id }
-        val completionWindow = minOf(15_000L, progress.durationMillis / 20L)
+        val completionWindow = minOf(15_000L, progress.durationMillis / 2L)
         val finished = progress.positionMillis >= progress.durationMillis - completionWindow
         val next = if (finished || progress.positionMillis == 0L) current
             else (listOf(progress) + current)
