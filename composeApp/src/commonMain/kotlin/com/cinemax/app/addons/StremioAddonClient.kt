@@ -41,7 +41,9 @@ object StremioAddonClient {
         extra: Map<String, String> = emptyMap()
     ): String {
         require(isSupportedResource(resource)) { "Unsupported Stremio resource" }
-        val withoutFragment = baseManifestUrl.substringBefore('#')
+        require(type.isNotBlank() && id.isNotBlank()) { "Resource type and id cannot be blank" }
+        val withoutFragment = manifestUrl(baseManifestUrl)
+            ?: throw IllegalArgumentException("Invalid addon manifest URL")
         val queryIndex = withoutFragment.indexOf('?').takeIf { it >= 0 } ?: withoutFragment.length
         val manifestPath = withoutFragment.substring(0, queryIndex)
         val query = withoutFragment.substring(queryIndex)
