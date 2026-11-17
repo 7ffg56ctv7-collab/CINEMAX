@@ -219,4 +219,27 @@ class DiscoveryPresentationTest {
             DiscoveryPresentation.sortedStreams(options, true, subtitle = "English").map { it.name })
     }
 
+    @Test fun recordedFastStartupRanksBeforeUnmeasuredHighQualitySource() {
+        val sources = listOf(
+            StremioStream(name = "4K", url = "https://cdn.example/4k"),
+            StremioStream(name = "720p", url = "https://cdn.example/720")
+        )
+        assertEquals(listOf("720p", "4K"),
+            DiscoveryPresentation.sortedStreams(
+                sources, true, startupMillis = mapOf("720p" to 1000L)
+            ).map { it.name })
+    }
+
+    @Test fun brokenSourceStillRanksAfterFastButHealthySource() {
+        val sources = listOf(
+            StremioStream(name = "4K", url = "https://cdn.example/4k"),
+            StremioStream(name = "720p", url = "https://cdn.example/720")
+        )
+        assertEquals(listOf("720p", "4K"),
+            DiscoveryPresentation.sortedStreams(
+                sources, true, preferredName = "4K", brokenLabels = setOf("4K"),
+                startupMillis = mapOf("4K" to 100L, "720p" to 4000L)
+            ).map { it.name })
+    }
+
 }
