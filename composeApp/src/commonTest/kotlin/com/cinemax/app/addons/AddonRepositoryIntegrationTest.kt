@@ -208,4 +208,105 @@ class AddonRepositoryIntegrationTest {
         }
     }
 
+    @Test fun invalidManifestNameIsRejectedBeforeInstallation() = runBlocking {
+        val client = HttpClient(MockEngine {
+            respond("""{"id":"provider","name":" ","version":"1"}""", headers = header)
+        })
+        try {
+            kotlin.test.assertFailsWith<IllegalArgumentException> {
+                AddonRepository(client).loadManifest("https://primary.example/manifest.json")
+            }
+        } finally { client.close() }
+    }
+
+    @Test fun duplicateCatalogDefinitionsAreSanitized() = runBlocking {
+        val client = HttpClient(MockEngine {
+            respond("""{"id":"provider","name":"Test","version":"1",
+                "catalogs":[{"type":"movie","id":"top"},{"type":"movie","id":"top"},
+                {"type":"movie","id":" "},{"type":"series","id":"fresh"}],
+                "types":["movie","movie","series",""]}""", headers = header)
+        })
+        try {
+            val manifest = AddonRepository(client).loadManifest("https://primary.example/manifest.json")
+            assertEquals(2, manifest.catalogs.size)
+            assertEquals(listOf("movie","series"), manifest.types)
+        } finally { client.close() }
+    }
+
+    @Test fun oversizedSearchIsRejectedWithoutNetworkRequest() = runBlocking {
+        var count = 0
+        val client = HttpClient(MockEngine {
+            count++
+            respond("""{"metas":[]}""", headers = header)
+        })
+        try {
+            kotlin.test.assertFailsWith<IllegalArgumentException> {
+                AddonRepository(client).searchCatalog(
+                    "https://primary.example/manifest.json", "movie", "top", "a".repeat(161))
+            }
+            assertEquals(0, count)
+        } finally { client.close() }
+    }
+
+    @Test fun excessivePaginationOffsetIsRejectedWithoutNetworkRequest() = runBlocking {
+        var count = 0
+        val client = HttpClient(MockEngine {
+            count++
+            respond("""{"metas":[]}""", headers = header)
+        })
+        try {
+            kotlin.test.assertFailsWith<IllegalArgumentException> {
+                AddonRepository(client).searchCatalog(
+                    "https://primary.example/manifest.json", "movie", "top", "a", skip = 1_000_001)
+            }
+            assertEquals(0, count)
+        } finally { client.close() }
+    }
+
+    @Test fun remoteStreamListsAreBoundedAndInvalidUrlsExcluded() = runBlocking {
+        val streams = (1..260).joinToString(",") {
+            """{"name":"Stream","url":"https://cdn.example/$it.mp4"}"""
+        }
+        val client = HttpClient(MockEngine {
+            respond("""{"streams":[$streams]}""", headers = header)
+        })
+        try {
+            val loaded = AddonRepository(client).loadStreams(
+                "https://primary.example/manifest.json","movie","tt1234567")
+            assertEquals(250, loaded.size)
+        } finally { client.close() }
+    }
+
+    @Test fun corruptCatalogEntriesAreDroppedBeforeDisplay() = runBlocking {
+        val client = HttpClient(MockEngine {
+            respond("""{"metas":[
+                {"id":"","type":"movie","name":"Missing ID"},
+                {"id":"good","type":"movie","name":"Valid"},
+                {"id":"good","type":"movie","name":"Duplicate"},
+                {"id":"bad","type":"movie","name":" "}
+            ]}""", headers = header)
+        })
+        try {
+            val loaded = AddonRepository(client).loadCatalog(
+                "https://primary.example/manifest.json","movie","top")
+            assertEquals(1, loaded.size)
+            assertEquals("Valid", loaded.single().name)
+        } finally { client.close() }
+    }
+
+    @Test fun metadataEpisodeListsCannotGrowWithoutLimit() = runBlocking {
+        val episodes = (1..1002).joinToString(",") {
+            """{"id":"video-$it","episode":$it}"""
+        }
+        val client = HttpClient(MockEngine {
+            respond("""{"meta":{"id":"tt1234567","type":"series","name":"Show",
+                "videos":[$episodes]}}""", headers = header)
+        })
+        try {
+            val meta = AddonRepository(client).loadMeta(
+                "https://primary.example/manifest.json","series","tt1234567")
+            assertEquals(1000, meta?.videos?.size)
+        } finally { client.close() }
+    }
+
 }
