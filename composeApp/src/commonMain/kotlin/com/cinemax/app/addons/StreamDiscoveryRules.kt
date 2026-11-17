@@ -1,6 +1,7 @@
 package com.cinemax.app.addons
 
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import com.cinemax.app.core.DiscoveryPresentation
 
@@ -27,7 +28,15 @@ object StreamDiscoveryRules {
                 is JsonPrimitive -> resource.isString && resource.content.equals("stream", true)
                 is JsonObject -> {
                     val name = (resource["name"] as? JsonPrimitive)?.content
-                    name.equals("stream", true)
+                    val types = (resource["types"] as? JsonArray)
+                        ?.mapNotNull { (it as? JsonPrimitive)?.content }
+                    val prefixes = (resource["idPrefixes"] as? JsonArray)
+                        ?.mapNotNull { (it as? JsonPrimitive)?.content }
+                    name.equals("stream", true) &&
+                        (types.isNullOrEmpty() || types.any { it.equals(type, true) }) &&
+                        (prefixes.isNullOrEmpty() || prefixes.any {
+                            mediaId.startsWith(it, ignoreCase = true)
+                        })
                 }
                 else -> false
             }
