@@ -655,9 +655,11 @@ fun App() {
                     NativeVideoPlayer(
                         url = mediaUrl,
                         modifier = Modifier.fillMaxWidth().height(260.dp),
-                        initialPositionMillis = playingItem?.let { item ->
-                            watchProgressItems.firstOrNull { it.item.id == item.id }?.positionMillis ?: 0L
-                        } ?: 0L,
+                        initialPositionMillis = if (preferences.rememberPlaybackPosition) {
+                            playingItem?.let { item ->
+                                watchProgressItems.firstOrNull { it.item.id == item.id }?.positionMillis ?: 0L
+                            } ?: 0L
+                        } else 0L,
                         onProgress = { positionMillis, durationMillis ->
                             val item = playingItem
                             if (item != null && preferences.rememberPlaybackPosition) {
