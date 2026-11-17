@@ -45,12 +45,74 @@ object StreamPresentation {
         }
     }
 
+    fun containerFormat(stream: StremioStream): String? {
+        val text = words(stream)
+        return when {
+            has(text, "mkv") || has(text, "matroska") -> "MKV"
+            has(text, "mp4") -> "MP4"
+            has(text, "webm") -> "WebM"
+            has(text, "avi") -> "AVI"
+            else -> null
+        }
+    }
+
+    fun releaseSource(stream: StremioStream): String? {
+        val text = words(stream)
+        return when {
+            listOf("bluray", "blu-ray", "bdrip", "brrip").any { has(text, it) } -> "Blu-ray"
+            listOf("web-dl", "webdl").any { has(text, it) } -> "WEB-DL"
+            listOf("webrip", "web-rip").any { has(text, it) } -> "WEBRip"
+            has(text, "hdtv") -> "HDTV"
+            has(text, "dvdrip") -> "DVDRip"
+            else -> null
+        }
+    }
+
+    fun frameRate(stream: StremioStream): String? {
+        val text = words(stream)
+        return when {
+            listOf("60fps", "60 fps", "59.94fps").any { has(text, it) } -> "60 fps"
+            listOf("50fps", "50 fps").any { has(text, it) } -> "50 fps"
+            listOf("30fps", "30 fps", "29.97fps").any { has(text, it) } -> "30 fps"
+            listOf("24fps", "24 fps", "23.976fps").any { has(text, it) } -> "24 fps"
+            else -> null
+        }
+    }
+
+    fun audioChannels(stream: StremioStream): String? {
+        val text = words(stream)
+        return when {
+            has(text, "7.1") -> "7.1"
+            has(text, "5.1") -> "5.1"
+            has(text, "2.0") || has(text, "stereo") -> "Stereo"
+            has(text, "mono") || has(text, "1.0") -> "Mono"
+            else -> null
+        }
+    }
+
+    fun subtitleLanguage(stream: StremioStream): String? {
+        val text = words(stream)
+        return when {
+            listOf("arabic sub", "arabic subs", "arabic subtitles", "ar sub", "ar subs").any { has(text, it) } -> "Arabic subtitles"
+            listOf("english sub", "english subs", "english subtitles", "en sub", "en subs").any { has(text, it) } -> "English subtitles"
+            else -> null
+        }
+    }
+
+    fun audioLanguage(stream: StremioStream): String? {
+        val text = words(stream)
+        return when {
+            listOf("arabic dub", "arabic dubbed", "ar dub").any { has(text, it) } -> "Arabic dub"
+            listOf("english dub", "english dubbed", "en dub").any { has(text, it) } -> "English dub"
+            else -> null
+        }
+    }
+
     fun sourceType(stream: StremioStream): String {
         val url = stream.url?.trim().orEmpty()
         return when {
             !stream.infoHash.isNullOrBlank() -> "Torrent"
-            url.startsWith("https://", ignoreCase = true) ||
-                url.startsWith("http://", ignoreCase = true) -> "Direct"
+            StremioAddonClient.isSafeMediaUrl(url) -> "Direct"
             else -> "Unknown"
         }
     }
@@ -60,6 +122,12 @@ object StreamPresentation {
             StreamQualityOrder.qualityLabel(stream).takeUnless { it == "Unknown" },
             hdrFormat(stream),
             videoCodec(stream),
-            audioFormat(stream)
+            audioFormat(stream),
+            audioChannels(stream),
+            releaseSource(stream),
+            frameRate(stream),
+            subtitleLanguage(stream),
+            audioLanguage(stream),
+            containerFormat(stream)
         )
 }
