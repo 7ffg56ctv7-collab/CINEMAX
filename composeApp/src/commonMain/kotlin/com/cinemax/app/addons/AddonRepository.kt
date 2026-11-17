@@ -57,7 +57,9 @@ class AddonRepository(
     suspend fun loadStreams(manifestUrl: String, type: String, mediaId: String): List<StremioStream> {
         val url = StremioAddonClient.resourceUrl(validatedBase(manifestUrl), "stream", type, mediaId)
         val response = http.get(url)
-        return StreamDeduplicator.unique(json.decodeFromString<StremioStreamResponse>(response.bodyAsText()).streams)
+        return StreamQualityOrder.sorted(
+            StreamDeduplicator.unique(json.decodeFromString<StremioStreamResponse>(response.bodyAsText()).streams)
+        )
     }
 
     private fun validatedBase(manifestUrl: String): String =
