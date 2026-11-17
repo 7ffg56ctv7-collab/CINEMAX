@@ -1068,9 +1068,9 @@ fun App() {
                     NativeVideoPlayer(
                         url = mediaUrl,
                         modifier = Modifier.fillMaxWidth().height(260.dp),
-                        initialPositionMillis = playbackItem?.let { item ->
-                            watchProgressItems.firstOrNull { MediaIdentity.storageKey(it.item) == MediaIdentity.storageKey(item) }?.positionMillis ?: 0L
-                        } ?: 0L,
+                        initialPositionMillis = PlaybackResume.initialPosition(
+                            playbackItem, watchProgressItems.toList(), preferences.rememberPlaybackPosition
+                        ),
                         onProgress = { positionMillis, durationMillis ->
                             val item = playbackItem
                             // A successfully advancing native player confirms the source.
