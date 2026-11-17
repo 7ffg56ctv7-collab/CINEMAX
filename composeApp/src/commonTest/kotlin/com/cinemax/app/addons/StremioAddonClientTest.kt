@@ -5,6 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.assertFailsWith
 
 class StremioAddonClientTest {
     @Test
@@ -67,6 +68,32 @@ class StremioAddonClientTest {
         assertTrue(StremioAddonClient.isSupportedResource("stream"))
         assertFalse(StremioAddonClient.isSupportedResource("execute"))
     }
+    @Test
+    fun resourceBuilderRejectsUnsafeOriginsAndBlankIdentifiers() {
+        val invalidOrigins = listOf(
+            "http://remote.example/manifest.json",
+            "javascript:alert(1)",
+            "https://user:pass@addon.example/manifest.json",
+            "http://localhost.evil.example/manifest.json",
+            ""
+        )
+        invalidOrigins.forEach { origin ->
+            assertFailsWith<IllegalArgumentException>(origin) {
+                StremioAddonClient.resourceUrl(origin, "stream", "movie", "tt123")
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            StremioAddonClient.resourceUrl("https://addon.example", "stream", "", "tt123")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            StremioAddonClient.resourceUrl("https://addon.example", "stream", "movie", " ")
+        }
+        assertEquals(
+            "https://addon.example/stream/movie/tt123.json",
+            StremioAddonClient.resourceUrl("https://addon.example", "stream", "movie", "tt123")
+        )
+    }
+
     /**
      * Thirty independent regression cases covering URL normalization, protocol
      * restrictions, resource allowlisting, and safe playback URL selection.
