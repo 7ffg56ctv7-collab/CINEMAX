@@ -10,7 +10,7 @@ import com.cinemax.app.core.DiscoveryPresentation
  * the relevant stream resource and identifier prefix.
  */
 object StreamDiscoveryRules {
-    private val imdb = Regex("tt[0-9]{7,10}")
+    private val imdb = Regex("tt[0-9]{7,10}(?::[0-9]{1,3}:[0-9]{1,4})?")
 
     fun supportsCanonicalDirectStream(
         manifest: StremioManifest,
