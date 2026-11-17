@@ -21,6 +21,13 @@ class StreamDiscoveryRulesTest {
         assertTrue(StreamDiscoveryRules.supportsCanonicalDirectStream(manifest(), "movie", "tt1234567"))
     }
 
+    @Test fun canonicalImdbEpisodeIdCanBeLookedUpAcrossAddons() {
+        assertTrue(StreamDiscoveryRules.supportsCanonicalDirectStream(
+            manifest(types = listOf("series")), "series", "tt1234567:2:12"))
+        assertFalse(StreamDiscoveryRules.supportsCanonicalDirectStream(
+            manifest(types = listOf("series")), "series", "tt1234567:abc:3"))
+    }
+
     @Test fun neverSendsOpaqueIdsAcrossProviders() {
         assertFalse(StreamDiscoveryRules.supportsCanonicalDirectStream(manifest(), "movie", "local-1"))
     }
