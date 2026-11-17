@@ -185,4 +185,17 @@ class DiscoveryPresentationTest {
             DiscoveryPresentation.sortedStreams(streams, true, quality = "1080p", provider = "Cinema").map { it.name })
     }
 
+    @Test fun manuallyBrokenSourcesAppearAfterHealthyAlternatives() {
+        val streams = listOf(
+            StremioStream(name = "4K", url = "https://cdn.example/4k"),
+            StremioStream(name = "720p", url = "https://cdn.example/720")
+        )
+        assertEquals(
+            listOf("720p", "4K"),
+            DiscoveryPresentation.sortedStreams(
+                streams, true, preferredName = "4K", brokenLabels = setOf("4K")
+            ).map { it.name }
+        )
+    }
+
 }

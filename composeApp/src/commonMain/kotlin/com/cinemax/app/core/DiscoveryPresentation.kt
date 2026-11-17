@@ -160,7 +160,8 @@ object DiscoveryPresentation {
         playableOnly: Boolean,
         preferredName: String? = null,
         quality: String? = null,
-        provider: String? = null
+        provider: String? = null,
+        brokenLabels: Set<String> = emptySet()
     ): List<StremioStream> =
         streams.asSequence()
             .filter { !playableOnly || isPlayable(it) }
@@ -168,6 +169,7 @@ object DiscoveryPresentation {
             .filter { provider == null || providerLabel(it) == provider }
             .sortedWith(
                 compareByDescending<StremioStream> { isPlayable(it) }
+                    .thenBy { (it.name ?: it.title ?: "مصدر") in brokenLabels }
                     .thenByDescending { !preferredName.isNullOrBlank() && it.name == preferredName }
                     .thenByDescending { qualityRank(it) }
             )
