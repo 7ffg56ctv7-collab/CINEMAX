@@ -92,10 +92,12 @@ object EpisodeCatalog {
 
     /** Never guess episodes by title; match season and episode or exact ID. */
     fun matchingEpisode(candidates: List<StremioEpisode>, target: StremioEpisode): StremioEpisode? {
+        // Exact provider IDs are stronger evidence than human-readable titles.
+        candidates.firstOrNull { it.id == target.id }?.let { return it }
         if (target.season != null && target.number != null) {
             return candidates.firstOrNull { it.season == target.season && it.number == target.number }
         }
-        return candidates.firstOrNull { it.id == target.id }
+        return null
     }
 
     fun nextEpisode(episodes: List<StremioEpisode>, current: StremioEpisode): StremioEpisode? {
