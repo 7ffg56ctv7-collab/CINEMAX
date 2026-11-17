@@ -98,6 +98,55 @@ class StremioAddonClientTest {
      * Thirty independent regression cases covering URL normalization, protocol
      * restrictions, resource allowlisting, and safe playback URL selection.
      */
+
+    @Test
+    fun manifestQueryAndTrailingSlashRegressionMatrix() {
+        val cases = listOf(
+            "https://addon.example/?key=a" to "https://addon.example/manifest.json?key=a",
+            "https://addon.example/config/?key=a" to "https://addon.example/config/manifest.json?key=a",
+            "https://addon.example/config///?key=a" to "https://addon.example/config/manifest.json?key=a",
+            "https://addon.example/config/manifest.json?key=a" to "https://addon.example/config/manifest.json?key=a",
+            "https://addon.example/config/manifest.json/?key=a" to "https://addon.example/config/manifest.json?key=a",
+            "https://addon.example/config/?key=a#ignored" to "https://addon.example/config/manifest.json?key=a",
+            "https://addon.example/config/#ignored" to "https://addon.example/config/manifest.json",
+            "https://addon.example/config///" to "https://addon.example/config/manifest.json",
+            "https://addon.example/?a=1&b=2" to "https://addon.example/manifest.json?a=1&b=2",
+            "http://localhost:8080/config/?key=a" to "http://localhost:8080/config/manifest.json?key=a",
+            "http://127.0.0.1:8080/config/?key=a" to "http://127.0.0.1:8080/config/manifest.json?key=a",
+            "https://addon.example/config/?key=a%2Fb" to "https://addon.example/config/manifest.json?key=a%2Fb",
+            "https://addon.example/config/?key=hello%20world" to "https://addon.example/config/manifest.json?key=hello%20world",
+            "https://addon.example/config/?key=" to "https://addon.example/config/manifest.json?key=",
+            "https://addon.example/config/manifest.json/" to "https://addon.example/config/manifest.json"
+        )
+        cases.forEach { (input, expected) ->
+            assertEquals(expected, StremioAddonClient.manifestUrl(input), input)
+        }
+    }
+
+    @Test
+    fun resourceUrlPreservesNormalizedManifestQuery() {
+        val cases = listOf(
+            "https://addon.example/?key=a" to "https://addon.example/stream/movie/tt123.json?key=a",
+            "https://addon.example/config/?key=a" to "https://addon.example/config/stream/movie/tt123.json?key=a",
+            "https://addon.example/config/manifest.json?key=a" to "https://addon.example/config/stream/movie/tt123.json?key=a",
+            "https://addon.example/config///?key=a" to "https://addon.example/config/stream/movie/tt123.json?key=a",
+            "https://addon.example/config/#fragment" to "https://addon.example/config/stream/movie/tt123.json",
+            "https://addon.example/config/manifest.json/" to "https://addon.example/config/stream/movie/tt123.json",
+            "https://addon.example/config" to "https://addon.example/config/stream/movie/tt123.json",
+            "https://addon.example/" to "https://addon.example/stream/movie/tt123.json",
+            "http://localhost:8080/" to "http://localhost:8080/stream/movie/tt123.json",
+            "http://127.0.0.1:8080/" to "http://127.0.0.1:8080/stream/movie/tt123.json",
+            "https://addon.example/?a=1&b=2" to "https://addon.example/stream/movie/tt123.json?a=1&b=2",
+            "https://addon.example/?key=a%2Fb" to "https://addon.example/stream/movie/tt123.json?key=a%2Fb",
+            "https://addon.example/config/?key=" to "https://addon.example/config/stream/movie/tt123.json?key=",
+            "https://addon.example/config///" to "https://addon.example/config/stream/movie/tt123.json",
+            "https://addon.example/config/manifest.json?token=abc" to "https://addon.example/config/stream/movie/tt123.json?token=abc"
+        )
+        cases.forEach { (input, expected) ->
+            assertEquals(expected, StremioAddonClient.resourceUrl(input, "stream", "movie", "tt123"), input)
+        }
+    }
+
     @Test
     fun regressionMatrixForAddonAndPlaybackUrls() {
         val normalized = listOf(
