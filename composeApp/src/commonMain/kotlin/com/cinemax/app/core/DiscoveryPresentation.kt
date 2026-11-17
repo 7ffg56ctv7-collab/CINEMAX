@@ -10,6 +10,7 @@ enum class CatalogSort { Source, Title, Newest }
 object DiscoveryPresentation {
     private val yearPattern = Regex("(?:19|20)[0-9]{2}")
     private val ultraHD = Regex("(^|[^a-z0-9])(4k|2160p|uhd)($|[^a-z0-9])")
+    private val quadHD = Regex("(^|[^a-z0-9])(1440p|qhd)($|[^a-z0-9])")
     private val fullHD = Regex("(^|[^a-z0-9])(1080p|fhd|full[ -]?hd)($|[^a-z0-9])")
     private val highDefinition = Regex("(^|[^a-z0-9])(720p|720)($|[^a-z0-9])")
     private val standardDefinition = Regex("(^|[^a-z0-9])(480p|576p|sd)($|[^a-z0-9])")
@@ -44,6 +45,7 @@ object DiscoveryPresentation {
         val label = (stream.name.orEmpty() + " " + stream.title.orEmpty()).lowercase()
         return when {
             ultraHD.containsMatchIn(label) -> "4K"
+            quadHD.containsMatchIn(label) -> "1440p"
             fullHD.containsMatchIn(label) -> "1080p"
             highDefinition.containsMatchIn(label) -> "720p"
             standardDefinition.containsMatchIn(label) -> "SD"
@@ -55,7 +57,8 @@ object DiscoveryPresentation {
         stream.url?.let { StremioAddonClient.isSafeMediaUrl(it) } == true
 
     private fun qualityRank(stream: StremioStream): Int = when (qualityLabel(stream)) {
-        "4K" -> 4
+        "4K" -> 5
+        "1440p" -> 4
         "1080p" -> 3
         "720p" -> 2
         "SD" -> 1
@@ -63,11 +66,18 @@ object DiscoveryPresentation {
     }
 
     /** Put directly playable sources first, then the best advertised resolution. */
-    fun sortedStreams(streams: List<StremioStream>, playableOnly: Boolean): List<StremioStream> =
+    fun sortedStreams(
+        streams: List<StremioStream>,
+        playableOnly: Boolean,
+        preferredName: String? = null,
+        quality: String? = null
+    ): List<StremioStream> =
         streams.asSequence()
             .filter { !playableOnly || isPlayable(it) }
+            .filter { quality == null || qualityLabel(it) == quality }
             .sortedWith(
                 compareByDescending<StremioStream> { isPlayable(it) }
+                    .thenByDescending { !preferredName.isNullOrBlank() && it.name == preferredName }
                     .thenByDescending { qualityRank(it) }
             )
             .toList()
