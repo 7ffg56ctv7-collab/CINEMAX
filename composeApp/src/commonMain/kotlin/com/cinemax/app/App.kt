@@ -59,6 +59,7 @@ fun App() {
     var playableSourcesOnly by remember { mutableStateOf(false) }
     var preferences by remember { mutableStateOf(preferencesStore.load()) }
     var showSettings by remember { mutableStateOf(false) }
+    var showAddonManager by remember { mutableStateOf(false) }
     var showClearHistoryDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val addons = remember { mutableStateListOf<InstalledAddon>().apply { addAll(addonStore.load()) } }
@@ -255,6 +256,7 @@ fun App() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("مصادرك وإضافاتك", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { showAddonManager = !showAddonManager }) { Text(if (showAddonManager) "إخفاء" else "إدارة (${addons.size})") }
                         TextButton(onClick = { showAddDialog = true }) { Text("＋ إضافة") }
                     }
                     Text(status, color = Color.LightGray, fontSize = 13.sp)
@@ -262,7 +264,7 @@ fun App() {
                         Spacer(Modifier.height(10.dp))
                         LinearProgressIndicator(Modifier.fillMaxWidth())
                     }
-                    addons.forEach { addon ->
+                    if (showAddonManager) addons.forEach { addon ->
                         Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             FilterChip(
@@ -613,7 +615,7 @@ fun App() {
                         Text("الإضافات", color = appAccent, fontWeight = FontWeight.Bold)
                         Text("إدارة المصادر من بطاقة «مصادرك وإضافاتك» في الرئيسية. تشغيل شيفرات الإضافات غير مفعّل حفاظًا على الأمان.", fontSize = 12.sp, color = Color.Gray)
                         if (watchProgressItems.isNotEmpty()) {
-                            TextButton(onClick = { showClearHistoryDialog = true }) { Text("مسح سجل متابعة المشاهدة") }
+                            TextButton(onClick = { showSettings = false; showClearHistoryDialog = true }) { Text("مسح سجل متابعة المشاهدة") }
                         }
                         Text("RAIF • إصدار تجريبي", fontSize = 11.sp, color = Color.Gray)
                     }
@@ -628,7 +630,7 @@ fun App() {
                 title = { Text("مسح متابعة المشاهدة؟") },
                 text = { Text("سيُحذف تقدم المشاهدة المحفوظ على هذا الجهاز. لن تُحذف قائمة المفضلة.") },
                 confirmButton = { TextButton(onClick = {
-                    watchProgressItems.toList().forEach { watchProgressStore.remove(it.item) }
+                    watchProgressStore.clear()
                     watchProgressItems.clear()
                     showClearHistoryDialog = false
                 }) { Text("حذف السجل") } },
