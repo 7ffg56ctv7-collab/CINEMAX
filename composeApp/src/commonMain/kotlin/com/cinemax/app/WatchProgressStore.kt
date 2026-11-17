@@ -27,14 +27,19 @@ class WatchProgressStore(
 
     fun load(): List<WatchProgress> = runCatching {
         json.decodeFromString(ListSerializer(WatchProgress.serializer()), settings.getString(KEY, "[]"))
-            .filter { it.positionMillis > 0L && it.durationMillis > 0L && it.positionMillis < it.durationMillis }
+            .filter { it.item.id.isNotBlank() && it.positionMillis > 0L && it.durationMillis > 0L && it.positionMillis < it.durationMillis }
             .sortedByDescending { it.updatedAtEpochMillis }
             .distinctBy { it.item.id }
+            .take(MAX_ITEMS)
     }.getOrDefault(emptyList())
 
     fun save(progress: WatchProgress) {
         if (progress.durationMillis <= 0L || progress.positionMillis < 0L || progress.item.id.isBlank()) return
-        val current = load().filterNot { it.item.id == progress.item.id }
+        val history = load()
+        val existing = history.firstOrNull { it.item.id == progress.item.id }
+        // Delayed player callbacks must not overwrite newer resume positions.
+        if (existing != null && progress.updatedAtEpochMillis < existing.updatedAtEpochMillis) return
+        val current = history.filterNot { it.item.id == progress.item.id }
         val completionWindow = minOf(15_000L, progress.durationMillis / 2L)
         val finished = progress.positionMillis >= progress.durationMillis - completionWindow
         val next = if (finished || progress.positionMillis == 0L) current
