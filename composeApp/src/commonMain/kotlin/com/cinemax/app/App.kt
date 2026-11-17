@@ -47,6 +47,7 @@ fun App() {
     val addonStore = remember { AddonSettingsStore() }
     val preferencesStore = remember { CinemaxPreferencesStore() }
     val favoritesStore = remember { FavoritesStore() }
+    val sourcePreferenceStore = remember { SourcePreferenceStore() }
     val favoriteItems = remember { mutableStateListOf<com.cinemax.app.addons.StremioMetaPreview>().apply { addAll(favoritesStore.load()) } }
     val favoriteIds = favoriteItems.map { MediaIdentity.storageKey(it.type, it.id, it.name, it.releaseInfo) }.toSet()
     val watchProgressStore = remember { WatchProgressStore() }
@@ -71,6 +72,8 @@ fun App() {
     var activeCatalogSupportsSearch by remember { mutableStateOf(false) }
     var activeCatalogSupportsSkip by remember { mutableStateOf(false) }
     var loadingMore by remember { mutableStateOf(false) }
+    var moreCatalogPages by remember { mutableStateOf(true) }
+    var nextPageOffset by remember { mutableIntStateOf(0) }
     var catalogRequestVersion by remember { mutableIntStateOf(0) }
     var searchQuery by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
@@ -149,6 +152,8 @@ fun App() {
                     if (requestVersion != catalogRequestVersion) return@LaunchedEffect
                     catalogItems.clear()
                     catalogItems.addAll(restoredItems)
+                    nextPageOffset = restoredItems.size
+                    moreCatalogPages = restoredItems.isNotEmpty()
                     status = "تم استعادة ${restoredAddon.name} • ${catalogItems.size} عنصرًا"
                 } else {
                     status = "تم استعادة ${restoredAddon.name}؛ لا يوجد كتالوج معلن."
@@ -176,6 +181,8 @@ fun App() {
         selectedMeta = null
         availableCatalogs.clear()
         catalogItems.clear()
+        moreCatalogPages = true
+        nextPageOffset = 0
         selectedItem = null
         playbackUrl = null
         playingItem = null
@@ -203,6 +210,8 @@ fun App() {
                     val loaded = repository.loadCatalog(addon.manifestUrl, catalog.type, catalog.id)
                     if (requestVersion != catalogRequestVersion) return@launch
                     catalogItems.addAll(loaded)
+                    nextPageOffset = loaded.size
+                    moreCatalogPages = loaded.isNotEmpty()
                     status = "المصدر النشط: ${addon.name} • ${loaded.size} عنصرًا"
                 }
             } catch (error: Exception) {
@@ -273,6 +282,8 @@ fun App() {
                                 if (removingActiveAddon) {
                                     activeAddon = null
                                     catalogItems.clear()
+                                    moreCatalogPages = false
+                                    nextPageOffset = 0
                                     selectedItem = null
                                     selectedMeta = null
                                     playbackUrl = null
@@ -312,6 +323,12 @@ fun App() {
                 FilterChip(selected = catalogSort == CatalogSort.Source, onClick = { catalogSort = CatalogSort.Source }, label = { Text("ترتيب المصدر") })
                 FilterChip(selected = catalogSort == CatalogSort.Title, onClick = { catalogSort = CatalogSort.Title }, label = { Text("حسب الاسم") })
                 FilterChip(selected = catalogSort == CatalogSort.Newest, onClick = { catalogSort = CatalogSort.Newest }, label = { Text("الأحدث") })
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                TextButton(enabled = mediaTypeFilter != null || localFilterQuery.isNotEmpty() || catalogSort != CatalogSort.Source,
+                    onClick = { mediaTypeFilter = null; localFilterQuery = ""; catalogSort = CatalogSort.Source }) { Text("مسح التصفية") }
+                Spacer(Modifier.weight(1f))
+                Text("النتائج معروضة أدناه", color = Color.Gray, fontSize = 11.sp)
             }
             if (watchProgressItems.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
@@ -365,12 +382,16 @@ fun App() {
                                 searching = false
                                 loadingMore = false
                                 catalogItems.clear()
+                                moreCatalogPages = true
+                                nextPageOffset = 0
                                 loading = true
                                 scope.launch {
                                     try {
                                         val items = repository.loadCatalog(addon.manifestUrl, catalog.type, catalog.id)
                                         if (requestVersion != catalogRequestVersion) return@launch
                                         catalogItems.addAll(items)
+                                        nextPageOffset = items.size
+                                        moreCatalogPages = items.isNotEmpty()
                                         status = "تم تحميل ${catalog.name ?: catalog.id} • ${items.size} عنصرًا"
                                     } catch (error: Exception) {
                                         if (error is CancellationException) throw error
@@ -403,6 +424,8 @@ fun App() {
                             if (requestVersion != catalogRequestVersion) return@launch
                             catalogItems.clear()
                             catalogItems.addAll(items)
+                            nextPageOffset = items.size
+                            moreCatalogPages = items.isNotEmpty()
                             status = "تم تحديث الكتالوج • " + items.size + " عنصرًا"
                         } catch (error: Exception) {
                             if (error is CancellationException) throw error
@@ -436,6 +459,8 @@ fun App() {
                             val requestVersion = catalogRequestVersion
                             val submittedQuery = searchQuery.trim()
                             loadingMore = false
+                            moreCatalogPages = true
+                            nextPageOffset = 0
                             searching = true
                             scope.launch {
                                 try {
@@ -445,6 +470,8 @@ fun App() {
                                     if (requestVersion != catalogRequestVersion) return@launch
                                     catalogItems.clear()
                                     catalogItems.addAll(results)
+                                    nextPageOffset = results.size
+                                    moreCatalogPages = results.isNotEmpty()
                                     status = "نتائج البحث: ${results.size}"
                                 } catch (error: Exception) {
                                     if (error is CancellationException) throw error
@@ -503,7 +530,7 @@ fun App() {
                             }
                         }
                     }
-                    if (activeCatalogSupportsSkip && !showFavoritesOnly) {
+                    if (activeCatalogSupportsSkip && !showFavoritesOnly && moreCatalogPages) {
                         item {
                             Button(
                                 enabled = !loadingMore && !loading && !searching && catalogItems.isNotEmpty(),
@@ -513,7 +540,7 @@ fun App() {
                                     val type = activeCatalogType ?: return@Button
                                     val catalogId = activeCatalogId ?: return@Button
                                     val requestVersion = catalogRequestVersion
-                                    val nextOffset = catalogItems.size
+                                    val nextOffset = nextPageOffset
                                     val submittedQuery = searchQuery.trim()
                                     val supportsSearch = activeCatalogSupportsSearch
                                     loadingMore = true
@@ -534,6 +561,8 @@ fun App() {
                                             val existingIds = catalogItems.map { "${it.type}:${it.id}" }.toSet()
                                             val newItems = nextPage.distinctBy { "${it.type}:${it.id}" }.filterNot { "${it.type}:${it.id}" in existingIds }
                                             catalogItems.addAll(newItems)
+                                            nextPageOffset = nextOffset + nextPage.size
+                                            moreCatalogPages = nextPage.isNotEmpty() && newItems.isNotEmpty()
                                             status = "تم تحميل ${newItems.size} عنصر إضافي"
                                         } catch (error: Exception) {
                                             if (error is CancellationException) throw error
@@ -631,6 +660,8 @@ fun App() {
                                 streams.clear()
                                 searchQuery = ""
                                 catalogItems.clear()
+                                nextPageOffset = 0
+                                moreCatalogPages = false
                                 val catalog = manifest.catalogs.firstOrNull()
                                 if (catalog != null) {
                                     activeCatalogType = catalog.type
@@ -641,6 +672,8 @@ fun App() {
                                         val loaded = repository.loadCatalog(normalized, catalog.type, catalog.id)
                                         if (installRequestVersion != catalogRequestVersion) return@launch
                                         catalogItems.addAll(loaded)
+                                        nextPageOffset = loaded.size
+                                        moreCatalogPages = loaded.isNotEmpty()
                                         status = "تم تثبيت المصدر وجلب " + loaded.size + " عنصرًا"
                                     } catch (error: Exception) {
                                         if (error is CancellationException) throw error
@@ -668,6 +701,10 @@ fun App() {
         }
 
         selectedItem?.let { selected ->
+            var preferredSourceName by remember(selected.type, selected.id, selected.name, selected.releaseInfo) {
+                mutableStateOf(sourcePreferenceStore.load(selected))
+            }
+            var streamQualityFilter by remember(selected.type, selected.id) { mutableStateOf<String?>(null) }
             Dialog(onDismissRequest = { selectedItem = null }) {
                 Column(
                     Modifier.fillMaxWidth().heightIn(max = 680.dp)
@@ -736,7 +773,20 @@ fun App() {
                     } else {
                         FilterChip(selected = playableSourcesOnly, onClick = { playableSourcesOnly = !playableSourcesOnly },
                             label = { Text("المصادر القابلة للتشغيل فقط") })
-                        val visibleStreams = DiscoveryPresentation.sortedStreams(streams.toList(), playableSourcesOnly)
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf<String?>(null, "4K", "1440p", "1080p", "720p", "SD").forEach { quality ->
+                                FilterChip(selected = streamQualityFilter == quality, onClick = { streamQualityFilter = quality },
+                                    label = { Text(quality ?: "جميع الجودات") })
+                            }
+                        }
+                        preferredSourceName?.let { preference ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("آخر مصدر اخترته: " + preference, color = Color.LightGray, fontSize = 11.sp, modifier = Modifier.weight(1f), maxLines = 2)
+                                TextButton(onClick = { sourcePreferenceStore.clear(selected); preferredSourceName = null }) { Text("مسح") }
+                            }
+                        }
+                        val visibleStreams = DiscoveryPresentation.sortedStreams(streams.toList(), playableSourcesOnly, preferredSourceName, streamQualityFilter)
+                        Text("المصادر المعروضة: " + visibleStreams.size, color = Color.LightGray, fontSize = 11.sp)
                         if (visibleStreams.isEmpty()) {
                             Text("لا تتوفر روابط تشغيل مباشرة آمنة حاليًا.", color = Color.LightGray, fontSize = 12.sp)
                         }
@@ -744,6 +794,7 @@ fun App() {
                             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
                                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                     Text("${index + 1}. ${stream.name ?: stream.title ?: "مصدر"}", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                    if (stream.name == preferredSourceName) Text("★ آخر مصدر اخترته", color = appAccent, fontSize = 11.sp)
                                     DiscoveryPresentation.qualityLabel(stream)?.let { quality ->
                                         Text("الجودة: " + quality, color = appAccent, fontSize = 12.sp)
                                     }
@@ -760,6 +811,10 @@ fun App() {
                                                     releaseInfo = meta?.releaseInfo ?: selected.releaseInfo,
                                                     imdbRating = meta?.imdbRating ?: selected.imdbRating
                                                 )
+                                                stream.name?.let { sourceName ->
+                                                    sourcePreferenceStore.save(selected, sourceName)
+                                                    preferredSourceName = sourceName
+                                                }
                                                 playbackUrl = mediaUrl
                                             } else status = "تم رفض رابط تشغيل غير آمن. يجب أن يستخدم HTTPS."
                                         }, modifier = Modifier.fillMaxWidth()) { Text("▶ تشغيل") }
