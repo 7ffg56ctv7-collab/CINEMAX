@@ -810,6 +810,8 @@ fun App() {
             }
             var streamQualityFilter by remember(selected.type, selected.id) { mutableStateOf<String?>(null) }
             var streamProviderFilter by remember(selected.type, selected.id) { mutableStateOf<String?>(null) }
+            var streamAudioFilter by remember(selected.type, selected.id) { mutableStateOf<String?>(null) }
+            var streamSubtitleFilter by remember(selected.type, selected.id) { mutableStateOf<String?>(null) }
             Dialog(onDismissRequest = { selectedItem = null; selectedEpisode = null }) {
                 Column(
                     Modifier.fillMaxWidth().heightIn(max = 680.dp)
@@ -939,8 +941,27 @@ fun App() {
                                 }
                             }
                         }
-                        if (streamQualityFilter != null || streamProviderFilter != null) {
-                            TextButton(onClick = { streamQualityFilter = null; streamProviderFilter = null }) { Text("مسح تصفية المصادر") }
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(null to "كل الأصوات", "عربي" to "صوت عربي", "English" to "صوت إنجليزي").forEach { (value, label) ->
+                                FilterChip(selected = streamAudioFilter == value, onClick = { streamAudioFilter = value },
+                                    label = { Text(label) })
+                            }
+                        }
+                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(null to "كل الترجمات", "عربية" to "ترجمة عربية", "English" to "ترجمة إنجليزية").forEach { (value, label) ->
+                                FilterChip(selected = streamSubtitleFilter == value, onClick = { streamSubtitleFilter = value },
+                                    label = { Text(label) })
+                            }
+                        }
+                        if (streamQualityFilter != null || streamProviderFilter != null ||
+                            streamAudioFilter != null || streamSubtitleFilter != null
+                        ) {
+                            TextButton(onClick = {
+                                streamQualityFilter = null
+                                streamProviderFilter = null
+                                streamAudioFilter = null
+                                streamSubtitleFilter = null
+                            }) { Text("مسح تصفية المصادر") }
                         }
                         preferredSourceName?.let { preference ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -950,7 +971,8 @@ fun App() {
                         }
                         val visibleStreams = DiscoveryPresentation.sortedStreams(
                             streams.toList(), playableSourcesOnly, preferredSourceName,
-                            streamQualityFilter, streamProviderFilter, brokenSourceNames
+                            streamQualityFilter, streamProviderFilter, brokenSourceNames,
+                            streamAudioFilter, streamSubtitleFilter
                         )
                         Text("المصادر المعروضة: " + visibleStreams.size, color = Color.LightGray, fontSize = 11.sp)
                         if (visibleStreams.isEmpty()) {
