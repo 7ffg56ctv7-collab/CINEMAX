@@ -52,7 +52,7 @@ fun App() {
     val sourcePreferenceStore = remember { SourcePreferenceStore() }
     val sourceHealthStore = remember { SourceHealthStore() }
     val favoriteItems = remember { mutableStateListOf<com.cinemax.app.addons.StremioMetaPreview>().apply { addAll(favoritesStore.load()) } }
-    val favoriteIds = favoriteItems.map { MediaIdentity.storageKey(it.type, it.id, it.name, it.releaseInfo) }.toSet()
+    val favoriteIds = favoriteItems.map { MediaIdentity.storageKey(it) }.toSet()
     val watchProgressStore = remember { WatchProgressStore() }
     val watchProgressItems = remember { mutableStateListOf<WatchProgress>().apply { addAll(watchProgressStore.load()) } }
     var showFavoritesOnly by remember { mutableStateOf(false) }
@@ -104,7 +104,7 @@ fun App() {
             loadingStreams = true
             streamsError = null
             streams.clear()
-            val currentMetaKey = MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
+            val currentMetaKey = MediaIdentity.storageKey(item)
             if (selectedMetaItemKey != currentMetaKey) {
                 selectedMeta = null
                 selectedMetaItemKey = currentMetaKey
@@ -125,11 +125,23 @@ fun App() {
                 if (item.type.equals("series", ignoreCase = true) &&
                     episodeChoices.isNotEmpty() && selectedEpisode == null
                 ) return@LaunchedEffect
-                val playableItem = selectedEpisode?.let { EpisodeCatalog.playbackPreview(item, it) } ?: item
+                val resolvedEpisode = selectedEpisode?.let { episode ->
+                    if (episodeChoices.isEmpty()) episode
+                    else EpisodeCatalog.matchingEpisode(episodeChoices, episode)
+                }
+                if (selectedEpisode != null && episodeChoices.isNotEmpty() && resolvedEpisode == null) {
+                    streamsError = "لم أجد الحلقة المحددة في هذا المصدر."
+                    return@LaunchedEffect
+                }
+                if (resolvedEpisode != null && selectedEpisode?.id != resolvedEpisode.id) {
+                    selectedEpisode = resolvedEpisode
+                    return@LaunchedEffect
+                }
+                val playableItem = resolvedEpisode?.let { EpisodeCatalog.playbackPreview(item, it) } ?: item
                 // Reveal the selected provider's sources immediately while other
                 // providers are discovered. An addon's metadata endpoint may be slow.
                 val preferredStreams = try {
-                    selectedEpisode?.embeddedStreams?.takeIf { it.isNotEmpty() }
+                    resolvedEpisode?.embeddedStreams?.takeIf { it.isNotEmpty() }
                         ?: repository.loadStreams(addon.manifestUrl, playableItem.type, playableItem.id)
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error
@@ -146,8 +158,8 @@ fun App() {
                     null
                 }
                 selectedMeta?.let { meta ->
-                    val itemKey = MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
-                    val index = favoriteItems.indexOfFirst { MediaIdentity.storageKey(it.type, it.id, it.name, it.releaseInfo) == itemKey }
+                    val itemKey = MediaIdentity.storageKey(item)
+                    val index = favoriteItems.indexOfFirst { MediaIdentity.storageKey(it) == itemKey }
                     if (index >= 0) {
                         favoriteItems[index] = item.copy(
                             name = meta.name, poster = meta.poster ?: item.poster,
@@ -400,7 +412,11 @@ fun App() {
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     watchProgressItems.forEach { progress ->
-                        Card(modifier = Modifier.width(142.dp).clickable { selectedEpisode = null; selectedItem = progress.item }, colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp)) {
+                        Card(modifier = Modifier.width(142.dp).clickable {
+                            val restore = EpisodeCatalog.restoreSelection(progress.item)
+                            selectedEpisode = restore?.second
+                            selectedItem = restore?.first ?: progress.item
+                        }, colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp)) {
                             Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 AsyncImage(model = progress.item.poster, contentDescription = progress.item.name, modifier = Modifier.fillMaxWidth().height(82.dp).background(Color(0xFF25283A), RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -408,7 +424,7 @@ fun App() {
                                     TextButton(
                                         onClick = {
                                             watchProgressStore.remove(progress.item)
-                                            watchProgressItems.removeAll { MediaIdentity.storageKey(it.item.type, it.item.id, it.item.name, it.item.releaseInfo) == MediaIdentity.storageKey(progress.item.type, progress.item.id, progress.item.name, progress.item.releaseInfo) }
+                                            watchProgressItems.removeAll { MediaIdentity.storageKey(it.item) == MediaIdentity.storageKey(progress.item) }
                                         },
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                                     ) { Text("×", color = Color.LightGray, fontSize = 16.sp) }
@@ -567,7 +583,7 @@ fun App() {
                 }
             } else {
                 items(visibleItems, key = { item ->
-                    MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
+                    MediaIdentity.storageKey(item)
                 }) { item -> item ->
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable {
@@ -789,12 +805,12 @@ fun App() {
             var brokenSourceNames by remember(sourceContextItem.id, sourceContextItem.name, sourceContextItem.releaseInfo) {
                 mutableStateOf(sourceHealthStore.brokenLabels(sourceContextItem))
             }
-            var preferredSourceName by remember(selected.type, selected.id, selected.name, selected.releaseInfo) {
-                mutableStateOf(sourcePreferenceStore.load(selected))
+            var preferredSourceName by remember(sourceContextItem.id, sourceContextItem.name, sourceContextItem.releaseInfo) {
+                mutableStateOf(sourcePreferenceStore.load(sourceContextItem))
             }
             var streamQualityFilter by remember(selected.type, selected.id) { mutableStateOf<String?>(null) }
             var streamProviderFilter by remember(selected.type, selected.id) { mutableStateOf<String?>(null) }
-            Dialog(onDismissRequest = { selectedItem = null }) {
+            Dialog(onDismissRequest = { selectedItem = null; selectedEpisode = null }) {
                 Column(
                     Modifier.fillMaxWidth().heightIn(max = 680.dp)
                         .background(Color(0xFF10131D), RoundedCornerShape(22.dp))
@@ -814,11 +830,11 @@ fun App() {
                         (selectedMeta?.imdbRating ?: selected.imdbRating)?.let { Text("★ $it", color = Color(0xFFFFC857), fontSize = 12.sp) }
                         selectedMeta?.runtime?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
                     }
-                    val selectedKey = MediaIdentity.storageKey(selected.type, selected.id, selected.name, selected.releaseInfo)
+                    val selectedKey = MediaIdentity.storageKey(selected)
                     val isFavorite = selectedKey in favoriteIds
                     OutlinedButton(onClick = {
                         if (isFavorite) {
-                            favoriteItems.removeAll { MediaIdentity.storageKey(it.type, it.id, it.name, it.releaseInfo) == selectedKey }
+                            favoriteItems.removeAll { MediaIdentity.storageKey(it) == selectedKey }
                         } else {
                             val meta = selectedMeta
                             val saved = selected.copy(
@@ -829,7 +845,7 @@ fun App() {
                                 releaseInfo = meta?.releaseInfo ?: selected.releaseInfo,
                                 imdbRating = meta?.imdbRating ?: selected.imdbRating
                             )
-                            favoriteItems.removeAll { MediaIdentity.storageKey(it.type, it.id, it.name, it.releaseInfo) == selectedKey }
+                            favoriteItems.removeAll { MediaIdentity.storageKey(it) == selectedKey }
                             favoriteItems.add(saved)
                         }
                         favoritesStore.save(favoriteItems.toList())
@@ -859,7 +875,9 @@ fun App() {
                         var episodeSeasonFilter by remember(selected.id, selected.name, selected.releaseInfo) {
                             mutableStateOf<Int?>(null)
                         }
-                        val activeSeason = episodeSeasonFilter ?: seasons.firstOrNull { it > 0 } ?: seasons.firstOrNull()
+                        val activeSeason = episodeSeasonFilter
+                            ?: selectedEpisode?.season?.takeIf { it in seasons }
+                            ?: seasons.firstOrNull { it > 0 } ?: seasons.firstOrNull()
                         if (seasons.isNotEmpty()) {
                             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 seasons.forEach { season ->
@@ -873,7 +891,11 @@ fun App() {
                         seasonEpisodes.take(shownEpisodes).forEach { episode ->
                             FilterChip(
                                 selected = selectedEpisode?.id == episode.id,
-                                onClick = { selectedEpisode = episode },
+                                onClick = {
+                                    playbackUrl = null
+                                    playingItem = null
+                                    selectedEpisode = episode
+                                },
                                 label = { Text(episode.label) }
                             )
                         }
@@ -923,7 +945,7 @@ fun App() {
                         preferredSourceName?.let { preference ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("آخر مصدر اخترته: " + preference, color = Color.LightGray, fontSize = 11.sp, modifier = Modifier.weight(1f), maxLines = 2)
-                                TextButton(onClick = { sourcePreferenceStore.clear(selected); preferredSourceName = null }) { Text("مسح") }
+                                TextButton(onClick = { sourcePreferenceStore.clear(sourceContextItem); preferredSourceName = null }) { Text("مسح") }
                             }
                         }
                         val visibleStreams = DiscoveryPresentation.sortedStreams(
@@ -982,7 +1004,7 @@ fun App() {
                                                 // the user tapped Play. Wait for real player progress.
                                                 pendingSourceName = stream.name ?: stream.title ?: "مصدر"
                                                 pendingSourceUrl = mediaUrl.trim()
-                                                pendingSourceOwner = selected
+                                                pendingSourceOwner = sourceContextItem
                                                 playbackUrl = mediaUrl.trim()
                                             } else status = "تم رفض رابط تشغيل غير آمن. يجب أن يستخدم HTTPS."
                                         }, modifier = Modifier.fillMaxWidth()) { Text("▶ تشغيل") }
@@ -1015,7 +1037,7 @@ fun App() {
                         url = mediaUrl,
                         modifier = Modifier.fillMaxWidth().height(260.dp),
                         initialPositionMillis = playbackItem?.let { item ->
-                            watchProgressItems.firstOrNull { MediaIdentity.storageKey(it.item.type, it.item.id, it.item.name, it.item.releaseInfo) == MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo) }?.positionMillis ?: 0L
+                            watchProgressItems.firstOrNull { MediaIdentity.storageKey(it.item) == MediaIdentity.storageKey(item) }?.positionMillis ?: 0L
                         } ?: 0L,
                         onProgress = { positionMillis, durationMillis ->
                             val item = playbackItem
@@ -1040,7 +1062,7 @@ fun App() {
                                     updatedAtEpochMillis = Clock.System.now().toEpochMilliseconds()
                                 )
                                 watchProgressStore.save(progress)
-                                watchProgressItems.removeAll { MediaIdentity.storageKey(it.item.type, it.item.id, it.item.name, it.item.releaseInfo) == MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo) }
+                                watchProgressItems.removeAll { MediaIdentity.storageKey(it.item) == MediaIdentity.storageKey(item) }
                                 if (!progress.isComplete) watchProgressItems.add(0, progress)
                             }
                         }
