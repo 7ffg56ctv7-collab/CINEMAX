@@ -15,7 +15,7 @@ class FavoritesStore(
     private val json = Json { ignoreUnknownKeys = true }
 
     fun load(): List<StremioMetaPreview> = runCatching {
-        json.decodeFromString(ListSerializer(StremioMetaPreview.serializer()), settings.getString(KEY, "[]"))
+        sanitize(json.decodeFromString(ListSerializer(StremioMetaPreview.serializer()), settings.getString(KEY, "[]")))
     }.getOrDefault(emptyList())
 
     fun save(items: List<StremioMetaPreview>) {
@@ -23,13 +23,20 @@ class FavoritesStore(
             KEY,
             json.encodeToString(
                 ListSerializer(StremioMetaPreview.serializer()),
-                items.distinctBy { identityKey(it) }
+                sanitize(items)
             )
         )
     }
 
+    private fun sanitize(items: List<StremioMetaPreview>): List<StremioMetaPreview> =
+        items.filter { it.id.isNotBlank() && it.type.isNotBlank() && it.name.isNotBlank() }
+            .distinctBy { identityKey(it) }.takeLast(MAX_ITEMS)
+
     private fun identityKey(item: StremioMetaPreview) =
         MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
 
-    private companion object { const val KEY = "cinemax.library.favorites.metadata.v2" }
+    private companion object {
+        const val KEY = "cinemax.library.favorites.metadata.v2"
+        const val MAX_ITEMS = 1_000
+    }
 }

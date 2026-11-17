@@ -11,11 +11,11 @@ class SourcePreferenceStore(private val settings: Settings = Settings()) {
             MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
 
     fun load(item: StremioMetaPreview): String? =
-        settings.getString(key(item), "").takeIf { it.isNotBlank() }
+        settings.getString(key(item), "").takeIf { it.isNotBlank() && "://" !in it && "?token=" !in it.lowercase() }
 
     fun save(item: StremioMetaPreview, sourceName: String) {
         val label = sourceName.trim().take(256)
-        if (label.isNotEmpty()) settings.putString(key(item), label)
+        if (label.isNotEmpty() && "://" !in label && "?token=" !in label.lowercase()) settings.putString(key(item), label)
     }
 
     fun clear(item: StremioMetaPreview) {

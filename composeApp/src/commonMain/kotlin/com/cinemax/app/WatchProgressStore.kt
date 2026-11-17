@@ -33,19 +33,25 @@ class WatchProgressStore(
 
     fun load(): List<WatchProgress> = runCatching {
         json.decodeFromString(ListSerializer(WatchProgress.serializer()), settings.getString(KEY, "[]"))
-            .filter { it.positionMillis > 0L && it.durationMillis > 0L && it.positionMillis < it.durationMillis }
+            .filter { it.positionMillis > 0L && it.durationMillis > 0L && it.positionMillis < it.durationMillis && !it.isComplete && it.updatedAtEpochMillis >= 0L }
             .sortedByDescending { it.updatedAtEpochMillis }
             .distinctBy { identityKey(it.item) }
             .take(MAX_ITEMS)
     }.getOrDefault(emptyList())
 
     fun save(progress: WatchProgress) {
-        if (progress.durationMillis <= 0L || progress.positionMillis < 0L) return
+        if (progress.durationMillis <= 0L || progress.positionMillis <= 0L || progress.updatedAtEpochMillis < 0L) return
         val key = identityKey(progress.item)
-        val current = load().filterNot { identityKey(it.item) == key }
+        val loaded = load()
+        if (loaded.any { identityKey(it.item) == key && it.updatedAtEpochMillis > progress.updatedAtEpochMillis }) return
+        val current = loaded.filterNot { identityKey(it.item) == key }
         val next = if (progress.isComplete) current
             else listOf(progress) + current
         settings.putString(KEY, json.encodeToString(ListSerializer(WatchProgress.serializer()), next.take(MAX_ITEMS)))
+    }
+
+    fun clear() {
+        settings.remove(KEY)
     }
 
     fun remove(item: StremioMetaPreview) {
