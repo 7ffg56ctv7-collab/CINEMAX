@@ -10,7 +10,8 @@ import io.ktor.http.encodeURLPathPart
  */
 object StremioAddonClient {
     fun manifestUrl(input: String): String? {
-        val value = input.trim().removeSuffix("/")
+        val value = input.trim().substringBefore('#').removeSuffix("/")
+        if (value.isBlank()) return null
         val parsed = try {
             Url(value)
         } catch (_: Throwable) {
@@ -20,6 +21,7 @@ object StremioAddonClient {
         val localDevelopment = parsed.protocol.name == "http" &&
             parsed.host in setOf("127.0.0.1", "localhost", "::1")
         if (!secure && !localDevelopment) return null
+        if (parsed.host.isBlank()) return null
         if (!parsed.user.isNullOrEmpty() || !parsed.password.isNullOrEmpty()) return null
         val queryIndex = value.indexOf('?').takeIf { it >= 0 } ?: value.length
         val path = value.substring(0, queryIndex)
@@ -39,7 +41,9 @@ object StremioAddonClient {
         extra: Map<String, String> = emptyMap()
     ): String {
         require(isSupportedResource(resource)) { "Unsupported Stremio resource" }
-        val withoutFragment = baseManifestUrl.substringBefore('#')
+        require(type.isNotBlank() && id.isNotBlank()) { "Resource type and id cannot be blank" }
+        val withoutFragment = manifestUrl(baseManifestUrl)
+            ?: throw IllegalArgumentException("Invalid addon manifest URL")
         val queryIndex = withoutFragment.indexOf('?').takeIf { it >= 0 } ?: withoutFragment.length
         val manifestPath = withoutFragment.substring(0, queryIndex)
         val query = withoutFragment.substring(queryIndex)
@@ -73,7 +77,7 @@ object StremioAddonClient {
         val secure = parsed.protocol.name == "https"
         val localDevelopment = parsed.protocol.name == "http" &&
             parsed.host in setOf("127.0.0.1", "localhost", "::1")
-        return (secure || localDevelopment) &&
+        return parsed.host.isNotBlank() && (secure || localDevelopment) &&
             parsed.user.isNullOrEmpty() && parsed.password.isNullOrEmpty()
     }
 

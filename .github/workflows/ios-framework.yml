@@ -26,6 +26,8 @@ jobs:
         run: |
           brew install xcodegen librsvg
           rsvg-convert -w 1024 -h 1024 iosApp/Resources/cinemax-icon.svg > iosApp/Sources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+      - name: Run Kotlin iOS simulator unit tests
+        run: gradle :composeApp:iosSimulatorArm64Test
       - name: Build iPhone device framework
         run: gradle :composeApp:linkDebugFrameworkIosArm64
       - name: Build iOS Simulator framework
