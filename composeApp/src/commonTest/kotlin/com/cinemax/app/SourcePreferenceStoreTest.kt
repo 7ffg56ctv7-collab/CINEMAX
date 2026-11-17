@@ -36,4 +36,18 @@ class SourcePreferenceStoreTest {
         store.save(first, " ")
         assertNull(store.load(first))
     }
+    @Test fun neverStoresPlaybackUrlsAsPreferredSourceNames() {
+        val store = SourcePreferenceStore(MapSettings())
+        store.save(first, "https://cdn.example/watch?token=secret")
+        assertNull(store.load(first))
+    }
+
+    @Test fun trimsDisplayLabelAndLimitsItsLength() {
+        val store = SourcePreferenceStore(MapSettings())
+        store.save(first, "  Cinema • 1080p  ")
+        assertEquals("Cinema • 1080p", store.load(first))
+        store.save(first, "a".repeat(400))
+        assertEquals(256, store.load(first)?.length)
+    }
+
 }

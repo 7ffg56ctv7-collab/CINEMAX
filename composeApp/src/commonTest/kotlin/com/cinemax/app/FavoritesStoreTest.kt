@@ -48,4 +48,21 @@ class FavoritesStoreTest {
         settings.putString("cinemax.library.favorites.metadata.v2", "not-json")
         assertEquals(emptyList(), FavoritesStore(settings).load())
     }
+    @Test fun blankEntriesAreNotRestoredToWatchlist() {
+        val store = FavoritesStore(MapSettings())
+        store.save(listOf(
+            StremioMetaPreview("", "movie", "Bad"),
+            StremioMetaPreview("valid", "movie", "Good"),
+            StremioMetaPreview("bad", "movie", " ")
+        ))
+        assertEquals(listOf("Good"), store.load().map { it.name })
+    }
+
+    @Test fun watchlistIsCappedToProtectMemory() {
+        val store = FavoritesStore(MapSettings())
+        store.save((0..1001).map { StremioMetaPreview("id$it", "movie", "Title $it") })
+        assertEquals(1_000, store.load().size)
+        assertEquals("id1001", store.load().last().id)
+    }
+
 }

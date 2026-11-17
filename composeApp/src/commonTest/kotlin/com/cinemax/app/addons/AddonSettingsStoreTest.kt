@@ -52,4 +52,29 @@ class AddonSettingsStoreTest {
 
         assertTrue(store.load().isEmpty())
     }
+    @Test fun duplicatesKeepTheMostRecentlyInstalledAddon() {
+        val store = AddonSettingsStore(MapSettings())
+        val old = InstalledAddon("https://addon.example/manifest.json", "addon", "Old", "1", installedAtEpochMillis = 1L)
+        val recent = old.copy(name = "New", version = "2")
+        store.save(listOf(old, recent))
+        assertEquals(listOf(recent), store.load())
+    }
+
+    @Test fun invalidOrInsecureStoredAddonsAreDropped() {
+        val store = AddonSettingsStore(MapSettings())
+        val safe = InstalledAddon("https://safe.example/manifest.json", "safe", "Safe", "1", installedAtEpochMillis = 0L)
+        val insecure = safe.copy(id = "unsafe", name = "Unsafe", manifestUrl = "http://unsafe.example")
+        val broken = safe.copy(id = " ", name = "Invalid")
+        store.save(listOf(insecure, safe, broken))
+        assertEquals(listOf(safe), store.load())
+    }
+
+    @Test fun repeatedEntriesStayWithinMemoryLimit() {
+        val store = AddonSettingsStore(MapSettings())
+        store.save((0..110).map {
+            InstalledAddon("https://addon.example/manifest.json", "addon$it", "Addon $it", "1", installedAtEpochMillis = 0L)
+        })
+        assertEquals(100, store.load().size)
+    }
+
 }
