@@ -91,4 +91,33 @@ class StremioAddonClientTest {
         )
     }
 
+    @Test fun resourceArgumentsRejectEmptyAndOversizedFields() {
+        val base = "https://addon.example/manifest.json"
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            StremioAddonClient.resourceUrl(base, "stream", " ", "tt1234567")
+        }
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            StremioAddonClient.resourceUrl(base, "stream", "movie", "")
+        }
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            StremioAddonClient.resourceUrl(base, "catalog", "movie", "top",
+                mapOf("search" to "a".repeat(4_097)))
+        }
+    }
+
+    @Test fun unsafeControlCharactersAreNeverAcceptedForPlayback() {
+        assertFalse(StremioAddonClient.isSafeMediaUrl("https://cdn.example/video.mp4\nInjected"))
+        assertFalse(StremioAddonClient.isSafeMediaUrl("https://cdn.example/video.mp4\rInjected"))
+    }
+
+    @Test fun extremeAddonUrlsAreRejectedBeforeParsing() {
+        assertNull(StremioAddonClient.manifestUrl(
+            "https://addon.example/" + "a".repeat(8_200)))
+    }
+
+    @Test fun excessiveMediaUrlsAreRejected() {
+        assertFalse(StremioAddonClient.isSafeMediaUrl(
+            "https://cdn.example/video?key=" + "x".repeat(17_000)))
+    }
+
 }
