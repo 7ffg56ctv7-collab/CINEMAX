@@ -31,6 +31,8 @@ import com.cinemax.app.addons.createCinemaxHttpClient
 import com.cinemax.app.core.MediaIdentity
 import com.cinemax.app.core.CatalogSort
 import com.cinemax.app.core.DiscoveryPresentation
+import com.cinemax.app.core.EpisodeCatalog
+import com.cinemax.app.core.StremioEpisode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -69,6 +71,7 @@ fun App() {
     var activeAddon by remember { mutableStateOf(addons.lastOrNull()) }
     var selectedItem by remember { mutableStateOf<StremioMetaPreview?>(null) }
     var selectedMeta by remember { mutableStateOf<com.cinemax.app.addons.StremioMeta?>(null) }
+    var selectedEpisode by remember { mutableStateOf<StremioEpisode?>(null) }
     var activeCatalogType by remember { mutableStateOf<String?>(null) }
     var activeCatalogId by remember { mutableStateOf<String?>(null) }
     var activeCatalogSupportsSearch by remember { mutableStateOf(false) }
@@ -89,19 +92,34 @@ fun App() {
     var playbackUrl by remember { mutableStateOf<String?>(null) }
     var playingItem by remember { mutableStateOf<StremioMetaPreview?>(null) }
 
-    LaunchedEffect(selectedItem?.id, selectedItem?.type, selectedItem?.name, selectedItem?.releaseInfo, activeAddon?.id, activeAddon?.manifestUrl, addons.toList(), streamsRefreshVersion) {
+    LaunchedEffect(selectedItem?.id, selectedItem?.type, selectedItem?.name, selectedItem?.releaseInfo, activeAddon?.id, activeAddon?.manifestUrl, addons.toList(), selectedEpisode?.id, streamsRefreshVersion) {
         val item = selectedItem
         val addon = activeAddon
         if (item != null && addon != null) {
             loadingStreams = true
             streamsError = null
             streams.clear()
-            selectedMeta = null
+            if (selectedMeta?.id != item.id) selectedMeta = null
             try {
+                // TV series expose video IDs per episode. Do not query a show's
+                // base ID when its metadata provides episode-specific video IDs.
+                if (item.type.equals("series", ignoreCase = true) && selectedMeta == null) {
+                    selectedMeta = try {
+                        repository.loadMeta(addon.manifestUrl, item.type, item.id)
+                    } catch (error: Exception) {
+                        if (error is CancellationException) throw error
+                        null
+                    }
+                }
+                val episodeChoices = EpisodeCatalog.parse(selectedMeta?.videos.orEmpty())
+                if (item.type.equals("series", ignoreCase = true) &&
+                    episodeChoices.isNotEmpty() && selectedEpisode == null
+                ) return@LaunchedEffect
+                val playableItem = selectedEpisode?.let { EpisodeCatalog.playbackPreview(item, it) } ?: item
                 // Reveal the selected provider's sources immediately while other
                 // providers are discovered. An addon's metadata endpoint may be slow.
                 val preferredStreams = try {
-                    repository.loadStreams(addon.manifestUrl, item.type, item.id)
+                    repository.loadStreams(addon.manifestUrl, playableItem.type, playableItem.id)
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error
                     emptyList()
@@ -110,7 +128,7 @@ fun App() {
                     stream.copy(name = addon.name + " • " + (stream.name ?: stream.title ?: "مصدر"))
                 })
                 selectedMeta = try {
-                    repository.loadMeta(addon.manifestUrl, item.type, item.id)
+                    selectedMeta ?: repository.loadMeta(addon.manifestUrl, item.type, item.id)
                 } catch (error: Exception) {
                     if (error is CancellationException) throw error
                     status = "تعذر تحميل بيانات العنوان؛ سأحاول جلب مصادر المشاهدة."
@@ -131,7 +149,7 @@ fun App() {
                     }
                 }
                 val collected = repository.loadStreamsAcrossAddons(
-                    addons.toList(), item, addon.id, preferredStreams
+                    addons.toList(), playableItem, addon.id, preferredStreams
                 )
                 if (collected.isNotEmpty()) {
                     streams.clear()
@@ -358,7 +376,7 @@ fun App() {
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     watchProgressItems.forEach { progress ->
-                        Card(modifier = Modifier.width(142.dp).clickable { selectedItem = progress.item }, colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp)) {
+                        Card(modifier = Modifier.width(142.dp).clickable { selectedEpisode = null; selectedItem = progress.item }, colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp)) {
                             Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 AsyncImage(model = progress.item.poster, contentDescription = progress.item.name, modifier = Modifier.fillMaxWidth().height(82.dp).background(Color(0xFF25283A), RoundedCornerShape(8.dp)), contentScale = ContentScale.Crop)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -526,6 +544,7 @@ fun App() {
                     items(visibleItems) { item ->
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable {
+                                selectedEpisode = null
                                 selectedItem = item
                             },
                             colors = CardDefaults.cardColors(containerColor = Panel)
@@ -799,6 +818,39 @@ fun App() {
                     selectedMeta?.cast?.takeIf { it.isNotEmpty() }?.let {
                         Text("طاقم التمثيل: ${it.take(8).joinToString("، ")}", color = Color.LightGray, fontSize = 12.sp)
                     }
+                    val episodes = remember(selectedMeta?.videos) {
+                        EpisodeCatalog.parse(selectedMeta?.videos.orEmpty())
+                    }
+                    if (selected.type.equals("series", ignoreCase = true) && episodes.isNotEmpty()) {
+                        Divider(color = Color.DarkGray)
+                        Text("اختر الحلقة • " + episodes.size + " حلقة", color = Color.White, fontWeight = FontWeight.Bold)
+                        val seasons = EpisodeCatalog.seasons(episodes)
+                        var episodeSeasonFilter by remember(selected.id) { mutableStateOf<Int?>(null) }
+                        val activeSeason = episodeSeasonFilter ?: seasons.firstOrNull()
+                        if (seasons.isNotEmpty()) {
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                seasons.forEach { season ->
+                                    FilterChip(selected = activeSeason == season, onClick = { episodeSeasonFilter = season },
+                                        label = { Text("الموسم " + season) })
+                                }
+                            }
+                        }
+                        val seasonEpisodes = EpisodeCatalog.forSeason(episodes, activeSeason)
+                        var shownEpisodes by remember(selected.id, activeSeason) { mutableIntStateOf(20) }
+                        seasonEpisodes.take(shownEpisodes).forEach { episode ->
+                            FilterChip(
+                                selected = selectedEpisode?.id == episode.id,
+                                onClick = { selectedEpisode = episode },
+                                label = { Text(episode.label) }
+                            )
+                        }
+                        if (seasonEpisodes.size > shownEpisodes) {
+                            TextButton(onClick = { shownEpisodes += 20 }) { Text("عرض حلقات إضافية") }
+                        }
+                        if (selectedEpisode == null) {
+                            Text("اختر حلقة لعرض مصادر تشغيلها.", color = Color.LightGray, fontSize = 12.sp)
+                        }
+                    }
                     Divider(color = Color.DarkGray)
                     Text("مصادر المشاهدة", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                     if (streamsError != null) {
@@ -863,8 +915,9 @@ fun App() {
                                         Button(enabled = DiscoveryPresentation.isPlayable(stream), onClick = {
                                             if (com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl(mediaUrl)) {
                                                 val meta = selectedMeta
-                                                playingItem = selected.copy(
-                                                    name = meta?.name ?: selected.name,
+                                                val playingPreview = selectedEpisode?.let { EpisodeCatalog.playbackPreview(selected, it) } ?: selected
+                                                playingItem = playingPreview.copy(
+                                                    name = if (selectedEpisode != null) playingPreview.name else (meta?.name ?: selected.name),
                                                     poster = meta?.poster ?: selected.poster,
                                                     background = meta?.background ?: selected.background,
                                                     description = meta?.description ?: selected.description,
@@ -875,7 +928,7 @@ fun App() {
                                                     sourcePreferenceStore.save(selected, sourceName)
                                                     preferredSourceName = sourceName
                                                 }
-                                                playbackUrl = mediaUrl
+                                                playbackUrl = mediaUrl.trim()
                                             } else status = "تم رفض رابط تشغيل غير آمن. يجب أن يستخدم HTTPS."
                                         }, modifier = Modifier.fillMaxWidth()) { Text("▶ تشغيل") }
                                         if (!DiscoveryPresentation.isPlayable(stream)) Text("رابط التشغيل غير آمن أو غير مدعوم.", color = Color.Gray, fontSize = 11.sp)
