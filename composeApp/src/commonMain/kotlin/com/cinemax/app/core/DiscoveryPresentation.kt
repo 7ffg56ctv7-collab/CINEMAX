@@ -169,7 +169,8 @@ object DiscoveryPresentation {
         provider: String? = null,
         brokenLabels: Set<String> = emptySet(),
         audio: String? = null,
-        subtitle: String? = null
+        subtitle: String? = null,
+        startupMillis: Map<String, Long> = emptyMap()
     ): List<StremioStream> =
         streams.asSequence()
             .filter { !playableOnly || isPlayable(it) }
@@ -181,6 +182,7 @@ object DiscoveryPresentation {
                 compareByDescending<StremioStream> { isPlayable(it) }
                     .thenBy { (it.name ?: it.title ?: "مصدر") in brokenLabels }
                     .thenByDescending { !preferredName.isNullOrBlank() && it.name == preferredName }
+                    .thenBy { startupMillis[it.name ?: it.title ?: "مصدر"] ?: Long.MAX_VALUE }
                     .thenByDescending { qualityRank(it) }
             )
             .toList()
