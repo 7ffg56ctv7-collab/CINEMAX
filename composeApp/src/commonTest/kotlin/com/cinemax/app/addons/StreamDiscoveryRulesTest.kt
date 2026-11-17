@@ -87,4 +87,26 @@ class StreamDiscoveryRulesTest {
         assertEquals(listOf("4K", "1080p", "720p"),
             StreamDiscoveryRules.rankAndDeduplicate(streams).map { it.name })
     }
+    @Test fun resourceLevelTypesAreRespected() {
+        val constrained = manifest().copy(resources = listOf(
+            JsonObject(mapOf(
+                "name" to JsonPrimitive("stream"),
+                "types" to kotlinx.serialization.json.JsonArray(listOf(JsonPrimitive("series")))
+            ))
+        ))
+        assertFalse(StreamDiscoveryRules.supportsCanonicalDirectStream(constrained, "movie", "tt1234567"))
+        assertTrue(StreamDiscoveryRules.supportsCanonicalDirectStream(
+            constrained.copy(types = listOf("movie", "series")), "series", "tt1234567"))
+    }
+
+    @Test fun resourceLevelIdPrefixesAreRespected() {
+        val constrained = manifest(prefixes = emptyList()).copy(resources = listOf(
+            JsonObject(mapOf(
+                "name" to JsonPrimitive("stream"),
+                "idPrefixes" to kotlinx.serialization.json.JsonArray(listOf(JsonPrimitive("other:")))
+            ))
+        ))
+        assertFalse(StreamDiscoveryRules.supportsCanonicalDirectStream(constrained, "movie", "tt1234567"))
+    }
+
 }
