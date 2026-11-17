@@ -47,4 +47,33 @@ class SourceHealthStoreTest {
             store.brokenLabels(first.copy(name = "Retitled", releaseInfo = "2022"))
         )
     }
+    @Test fun episodeBrokenReportsDoNotLeakToOtherEpisodes() {
+        val store = SourceHealthStore(MapSettings())
+        val series = StremioMetaPreview("tt1234567", "series", "Show")
+        val first = com.cinemax.app.core.EpisodeCatalog.playbackPreview(series,
+            com.cinemax.app.core.StremioEpisode("local-1", "One", 1, 1))
+        val second = com.cinemax.app.core.EpisodeCatalog.playbackPreview(series,
+            com.cinemax.app.core.StremioEpisode("local-2", "Two", 1, 2))
+        store.markBroken(first, "Broken")
+        assertEquals(setOf("Broken"), store.brokenLabels(first))
+        assertTrue(store.brokenLabels(second).isEmpty())
+    }
+
+    @Test fun sameEpisodeAcrossAddonsSharesBrokenReport() {
+        val store = SourceHealthStore(MapSettings())
+        val series = StremioMetaPreview("tt1234567", "series", "Show")
+        val first = com.cinemax.app.core.EpisodeCatalog.playbackPreview(series,
+            com.cinemax.app.core.StremioEpisode("local-a", "One", 1, 1))
+        val other = first.copy(id = "local-b", name = "Different label")
+        store.markBroken(first, "Provider")
+        assertEquals(setOf("Provider"), store.brokenLabels(other))
+    }
+
+    @Test fun labelsContainingTokensOrControlCharactersAreRejected() {
+        val store = SourceHealthStore(MapSettings())
+        store.markBroken(first, "Watch?token=secret")
+        store.markBroken(first, "Source\nHeader")
+        assertTrue(store.brokenLabels(first).isEmpty())
+    }
+
 }
