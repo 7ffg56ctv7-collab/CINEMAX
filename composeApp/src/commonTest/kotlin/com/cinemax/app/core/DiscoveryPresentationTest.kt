@@ -198,4 +198,25 @@ class DiscoveryPresentationTest {
         )
     }
 
+    @Test fun subtitleOnlySourcesAreNotLabeledAsDubbedAudio() {
+        assertEquals(null, DiscoveryPresentation.audioLabel(
+            StremioStream(name = "Arabic subtitles")
+        ))
+        assertEquals(null, DiscoveryPresentation.audioLabel(
+            StremioStream(name = "English subtitles")
+        ))
+    }
+
+    @Test fun advertisedAudioAndSubtitleFiltersCompose() {
+        val options = listOf(
+            StremioStream(name = "Primary • Arabic Audio 1080p", url = "https://cdn.example/ar"),
+            StremioStream(name = "Secondary • English subtitles", url = "https://cdn.example/sub"),
+            StremioStream(name = "Other • English Audio", url = "https://cdn.example/en")
+        )
+        assertEquals(listOf("Primary • Arabic Audio 1080p"),
+            DiscoveryPresentation.sortedStreams(options, true, audio = "عربي").map { it.name })
+        assertEquals(listOf("Secondary • English subtitles"),
+            DiscoveryPresentation.sortedStreams(options, true, subtitle = "English").map { it.name })
+    }
+
 }
