@@ -11,7 +11,9 @@ import io.ktor.http.encodeURLPathPart
 object StremioAddonClient {
     fun manifestUrl(input: String): String? {
         val value = input.trim().substringBefore('#')
-        if (value.isBlank()) return null
+        if (value.isBlank() || value.length > MAX_MANIFEST_LENGTH || value.any {
+            it == '\n' || it == '\r' || it == '\u0000'
+        }) return null
         val parsed = try {
             Url(value)
         } catch (_: Exception) {
@@ -43,6 +45,9 @@ object StremioAddonClient {
         extra: Map<String, String> = emptyMap()
     ): String {
         require(isSupportedResource(resource)) { "Unsupported Stremio resource" }
+        require(type.isNotBlank() && type.length <= MAX_TYPE_LENGTH) { "Invalid media type" }
+        require(id.isNotBlank() && id.length <= MAX_MEDIA_ID_LENGTH) { "Invalid media ID" }
+        require(extra.size <= MAX_EXTRA_ARGS) { "Too many resource arguments" }
         val withoutFragment = baseManifestUrl.substringBefore('#')
         val queryIndex = withoutFragment.indexOf('?').takeIf { it >= 0 } ?: withoutFragment.length
         val manifestPath = withoutFragment.substring(0, queryIndex)
@@ -57,7 +62,10 @@ object StremioAddonClient {
             append("/")
             append(id.encodeURLPathPart())
             extra.entries.sortedBy { it.key }.forEach { (key, value) ->
-                require(key.isNotBlank()) { "Extra argument key cannot be blank" }
+                require(key.isNotBlank() && key.length <= MAX_EXTRA_KEY_LENGTH) {
+                    "Invalid resource argument key"
+                }
+                require(value.length <= MAX_EXTRA_VALUE_LENGTH) { "Resource argument too long" }
                 append("/")
                 append(key.encodeURLPathPart())
                 append("=")
@@ -70,7 +78,10 @@ object StremioAddonClient {
 
     fun isSafeMediaUrl(input: String): Boolean {
         val value = input.trim()
-        if (value.isBlank() || value.contains('#')) return false
+        if (value.isBlank() || value.length > MAX_MEDIA_URL_LENGTH ||
+            value.contains('#') || value.any {
+                it == '\n' || it == '\r' || it == '\u0000'
+            }) return false
         val parsed = try {
             Url(value)
         } catch (_: Exception) {
@@ -82,6 +93,14 @@ object StremioAddonClient {
         return (secure || localDevelopment) && parsed.host.isNotBlank() &&
             parsed.user.isNullOrEmpty() && parsed.password.isNullOrEmpty()
     }
+
+    private const val MAX_MANIFEST_LENGTH = 8_192
+    private const val MAX_MEDIA_URL_LENGTH = 16_384
+    private const val MAX_TYPE_LENGTH = 128
+    private const val MAX_MEDIA_ID_LENGTH = 1_024
+    private const val MAX_EXTRA_ARGS = 24
+    private const val MAX_EXTRA_KEY_LENGTH = 128
+    private const val MAX_EXTRA_VALUE_LENGTH = 4_096
 
     fun isSupportedResource(resource: String): Boolean =
         resource in setOf("catalog", "meta", "stream", "subtitles")
