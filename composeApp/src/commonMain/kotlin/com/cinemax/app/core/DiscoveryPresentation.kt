@@ -66,7 +66,7 @@ object DiscoveryPresentation {
                     searchTerms.all { searchable.contains(it) }
                 }
             }
-            .distinctBy { MediaIdentity.storageKey(it.type, it.id, it.name, it.releaseInfo) }
+            .distinctBy { MediaIdentity.storageKey(it) }
             .toList()
         val byTitle = compareBy<StremioMetaPreview> { normalizeSearch(it.name) }
         return when (order) {

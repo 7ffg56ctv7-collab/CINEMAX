@@ -8,7 +8,7 @@ import com.russhwolf.settings.Settings
 class SourcePreferenceStore(private val settings: Settings = Settings()) {
     private fun key(item: StremioMetaPreview): String =
         "raif.media.preferredSource." +
-            MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
+            MediaIdentity.storageKey(item)
 
     fun load(item: StremioMetaPreview): String? =
         settings.getString(key(item), "").takeIf { it.isNotBlank() && "://" !in it && "?token=" !in it.lowercase() }

@@ -68,7 +68,7 @@ class WatchProgressStore(
     }
 
     private fun identityKey(item: StremioMetaPreview) =
-        MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
+        MediaIdentity.storageKey(item)
 
     private companion object {
         const val KEY = "cinemax.watch.progress.v1"

@@ -33,7 +33,7 @@ class FavoritesStore(
             .distinctBy { identityKey(it) }.takeLast(MAX_ITEMS)
 
     private fun identityKey(item: StremioMetaPreview) =
-        MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
+        MediaIdentity.storageKey(item)
 
     private companion object {
         const val KEY = "cinemax.library.favorites.metadata.v2"
