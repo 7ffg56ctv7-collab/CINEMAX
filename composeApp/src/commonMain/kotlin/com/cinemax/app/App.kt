@@ -615,6 +615,10 @@ fun App() {
                                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                     Text("${index + 1}. ${stream.name ?: stream.title ?: "مصدر"}", color = Color.White, fontWeight = FontWeight.SemiBold)
                                     stream.title?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
+                                    val sourceBadges = com.cinemax.app.addons.StreamPresentation.badges(stream)
+                                    if (sourceBadges.isNotEmpty()) {
+                                        Text(sourceBadges.joinToString(" · "), color = appAccent, fontSize = 11.sp)
+                                    }
                                     stream.url?.let { mediaUrl ->
                                         Button(onClick = {
                                             if (com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl(mediaUrl)) {
