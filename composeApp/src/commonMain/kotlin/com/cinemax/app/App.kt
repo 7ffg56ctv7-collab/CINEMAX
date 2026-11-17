@@ -50,6 +50,7 @@ fun App() {
     val preferencesStore = remember { CinemaxPreferencesStore() }
     val favoritesStore = remember { FavoritesStore() }
     val sourcePreferenceStore = remember { SourcePreferenceStore() }
+    val sourceHealthStore = remember { SourceHealthStore() }
     val favoriteItems = remember { mutableStateListOf<com.cinemax.app.addons.StremioMetaPreview>().apply { addAll(favoritesStore.load()) } }
     val favoriteIds = favoriteItems.map { MediaIdentity.storageKey(it.type, it.id, it.name, it.releaseInfo) }.toSet()
     val watchProgressStore = remember { WatchProgressStore() }
@@ -769,6 +770,10 @@ fun App() {
         }
 
         selectedItem?.let { selected ->
+            val sourceContextItem = selectedEpisode?.let { EpisodeCatalog.playbackPreview(selected, it) } ?: selected
+            var brokenSourceNames by remember(sourceContextItem.id, sourceContextItem.name, sourceContextItem.releaseInfo) {
+                mutableStateOf(sourceHealthStore.brokenLabels(sourceContextItem))
+            }
             var preferredSourceName by remember(selected.type, selected.id, selected.name, selected.releaseInfo) {
                 mutableStateOf(sourcePreferenceStore.load(selected))
             }
@@ -902,7 +907,10 @@ fun App() {
                                 TextButton(onClick = { sourcePreferenceStore.clear(selected); preferredSourceName = null }) { Text("مسح") }
                             }
                         }
-                        val visibleStreams = DiscoveryPresentation.sortedStreams(streams.toList(), playableSourcesOnly, preferredSourceName, streamQualityFilter, streamProviderFilter)
+                        val visibleStreams = DiscoveryPresentation.sortedStreams(
+                            streams.toList(), playableSourcesOnly, preferredSourceName,
+                            streamQualityFilter, streamProviderFilter, brokenSourceNames
+                        )
                         Text("المصادر المعروضة: " + visibleStreams.size, color = Color.LightGray, fontSize = 11.sp)
                         if (visibleStreams.isEmpty()) {
                             Text("لا تتوفر روابط تشغيل مباشرة آمنة حاليًا.", color = Color.LightGray, fontSize = 12.sp)
@@ -911,7 +919,12 @@ fun App() {
                             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
                                 Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                     Text("${index + 1}. ${stream.name ?: stream.title ?: "مصدر"}", color = Color.White, fontWeight = FontWeight.SemiBold)
-                                    if (stream.name == preferredSourceName) Text("★ آخر مصدر اخترته", color = appAccent, fontSize = 11.sp)
+                                    val sourceLabel = stream.name ?: stream.title ?: "مصدر"
+                                    val isReportedBroken = sourceLabel in brokenSourceNames
+                                    if (stream.name == preferredSourceName) Text("★ آخر مصدر نجح", color = appAccent, fontSize = 11.sp)
+                                    if (isReportedBroken) {
+                                        Text("⚠ أبلغتَ أن هذا المصدر لا يعمل", color = Color(0xFFFFC857), fontSize = 11.sp)
+                                    }
                                     val sourceBadges = listOfNotNull(
                                         DiscoveryPresentation.qualityLabel(stream),
                                         DiscoveryPresentation.codecLabel(stream),
@@ -923,6 +936,16 @@ fun App() {
                                         Text(sourceBadges.joinToString(" • "), color = appAccent, fontSize = 12.sp)
                                     }
                                     stream.title?.let { Text(it, color = Color.LightGray, fontSize = 12.sp) }
+                                    TextButton(onClick = {
+                                        if (isReportedBroken) {
+                                            sourceHealthStore.clearBroken(sourceContextItem, sourceLabel)
+                                        } else {
+                                            sourceHealthStore.markBroken(sourceContextItem, sourceLabel)
+                                        }
+                                        brokenSourceNames = sourceHealthStore.brokenLabels(sourceContextItem)
+                                    }) {
+                                        Text(if (isReportedBroken) "إلغاء بلاغ المصدر" else "الإبلاغ: المصدر لا يعمل")
+                                    }
                                     stream.url?.let { mediaUrl ->
                                         Button(enabled = DiscoveryPresentation.isPlayable(stream), onClick = {
                                             if (com.cinemax.app.addons.StremioAddonClient.isSafeMediaUrl(mediaUrl)) {
