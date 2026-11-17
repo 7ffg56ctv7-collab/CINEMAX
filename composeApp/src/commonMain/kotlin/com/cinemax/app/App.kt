@@ -98,6 +98,17 @@ fun App() {
             streams.clear()
             selectedMeta = null
             try {
+                // Reveal the selected provider's sources immediately while other
+                // providers are discovered. An addon's metadata endpoint may be slow.
+                val preferredStreams = try {
+                    repository.loadStreams(addon.manifestUrl, item.type, item.id)
+                } catch (error: Exception) {
+                    if (error is CancellationException) throw error
+                    emptyList()
+                }
+                streams.addAll(preferredStreams.map { stream ->
+                    stream.copy(name = addon.name + " • " + (stream.name ?: stream.title ?: "مصدر"))
+                })
                 selectedMeta = try {
                     repository.loadMeta(addon.manifestUrl, item.type, item.id)
                 } catch (error: Exception) {
@@ -119,7 +130,13 @@ fun App() {
                         favoritesStore.save(favoriteItems.toList())
                     }
                 }
-                streams.addAll(repository.loadStreamsAcrossAddons(addons.toList(), item, addon.id))
+                val collected = repository.loadStreamsAcrossAddons(
+                    addons.toList(), item, addon.id, preferredStreams
+                )
+                if (collected.isNotEmpty()) {
+                    streams.clear()
+                    streams.addAll(collected)
+                }
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 streamsError = "تعذر جلب مصادر المشاهدة: ${error.message ?: "خطأ غير معروف"}"
@@ -791,9 +808,10 @@ fun App() {
                     if (loadingStreams) {
                         LinearProgressIndicator(Modifier.fillMaxWidth())
                         Text("جارٍ جلب المصادر...", color = Color.LightGray)
-                    } else if (streams.isEmpty()) {
+                    }
+                    if (!loadingStreams && streams.isEmpty()) {
                         Text("لم تُرجع الإضافة مصادر لهذا العنوان.", color = Color.LightGray, fontSize = 13.sp)
-                    } else {
+                    } else if (streams.isNotEmpty()) {
                         FilterChip(selected = playableSourcesOnly, onClick = { playableSourcesOnly = !playableSourcesOnly },
                             label = { Text("المصادر القابلة للتشغيل فقط") })
                         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
