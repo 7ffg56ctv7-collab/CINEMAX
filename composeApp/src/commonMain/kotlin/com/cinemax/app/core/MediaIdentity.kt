@@ -1,5 +1,7 @@
 package com.cinemax.app.core
 
+import com.cinemax.app.addons.StremioMetaPreview
+
 /**
  * Stable identity for the same movie/series returned by different catalogs or addons.
  *
@@ -21,6 +23,11 @@ object MediaIdentity {
             else -> type.trim().lowercase()
         }
         if (normalizedType.isEmpty()) return null
+
+        val imdbEpisode = normalizeImdbEpisodeId(id)
+        if (imdbEpisode != null && normalizedType == "series") {
+            return "$normalizedType:imdb-episode:$imdbEpisode"
+        }
 
         val imdb = normalizeImdbId(imdbId)
             ?: normalizeImdbId(id)
@@ -44,6 +51,28 @@ object MediaIdentity {
     fun storageKey(type: String, id: String, title: String, releaseInfo: String? = null): String {
         return key(type = type, id = id, title = title, releaseInfo = releaseInfo)
             ?: "${type.trim().lowercase()}:local:${id.trim().lowercase()}:${normalizeTitle(title)}"
+    }
+
+    private fun normalizeImdbEpisodeId(value: String?): String? {
+        val candidate = value?.trim()?.lowercase()?.removePrefix("imdb:") ?: return null
+        return IMDB_EPISODE_REGEX.matchEntire(candidate)?.value
+    }
+
+    /** Separate each episode, including addon-local IDs, from its parent series. */
+    fun storageKey(item: StremioMetaPreview): String {
+        if (item.type.equals("series", ignoreCase = true) && !item.seriesId.isNullOrBlank()) {
+            normalizeImdbEpisodeId(item.id)?.let { return "series:imdb-episode:$it" }
+            val parent = key(type = item.type, id = item.seriesId,
+                title = item.seriesName, releaseInfo = item.releaseInfo)
+                ?: ("series:local-parent:" + item.seriesId.trim().lowercase() + ":" +
+                    normalizeTitle(item.seriesName.orEmpty()))
+            if (item.episodeSeason != null && item.episodeNumber != null &&
+                item.episodeSeason in 0..999 && item.episodeNumber in 0..9999) {
+                return "$parent:episode:" + item.episodeSeason + ":" + item.episodeNumber
+            }
+            return "$parent:episode-id:" + item.id.trim().lowercase()
+        }
+        return storageKey(item.type, item.id, item.name, item.releaseInfo)
     }
 
     private fun normalizeImdbId(value: String?): String? {
@@ -74,6 +103,7 @@ object MediaIdentity {
     }.split(WHITESPACE_REGEX).filter { it.isNotEmpty() }.joinToString(" ")
 
     private val IMDB_REGEX = Regex("tt[0-9]{7,10}")
+    private val IMDB_EPISODE_REGEX = Regex("tt[0-9]{7,10}:[0-9]{1,3}:[0-9]{1,4}")
     private val TMDB_REGEX = Regex("(?:tmdb|themoviedb)[:/_-]?([0-9]{1,12})")
     private val YEAR_REGEX = Regex("(?:19|20)[0-9]{2}")
     private val WHITESPACE_REGEX = Regex("\\s+")
