@@ -34,6 +34,7 @@ import com.cinemax.app.core.DiscoveryPresentation
 import com.cinemax.app.core.EpisodeCatalog
 import com.cinemax.app.core.StremioEpisode
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 
@@ -1052,6 +1053,12 @@ fun App() {
         }
         playbackUrl?.let { mediaUrl ->
             val playbackItem = playingItem
+            var playbackConfirmed by remember(mediaUrl) { mutableStateOf(false) }
+            var playbackSlowNotice by remember(mediaUrl) { mutableStateOf(false) }
+            LaunchedEffect(mediaUrl) {
+                delay(25_000L)
+                if (!playbackConfirmed) playbackSlowNotice = true
+            }
             Dialog(onDismissRequest = { playbackUrl = null; playingItem = null; pendingSourceUrl = null; pendingSourceName = null; pendingSourceOwner = null }) {
                 Column(
                     modifier = Modifier.fillMaxWidth()
@@ -1074,6 +1081,10 @@ fun App() {
                         onProgress = { positionMillis, durationMillis ->
                             val item = playbackItem
                             // A successfully advancing native player confirms the source.
+                            if (positionMillis > 0L && durationMillis > 0L) {
+                                playbackConfirmed = true
+                                playbackSlowNotice = false
+                            }
                             if (positionMillis > 0L && durationMillis > 0L &&
                                 pendingSourceUrl == mediaUrl && pendingSourceName != null
                             ) {
@@ -1104,6 +1115,20 @@ fun App() {
                             }
                         }
                     )
+                    }
+                    if (!playbackConfirmed && !playbackSlowNotice) {
+                        Text("يتم التحقق من بدء التشغيل...", color = Color.Gray, fontSize = 11.sp)
+                    }
+                    if (playbackSlowNotice) {
+                        Text("لم نتمكن من تأكيد بدء التشغيل. إذا بقي الفيديو دون صورة، جرّب مصدرًا آخر.",
+                            color = Color(0xFFFFC857), fontSize = 12.sp)
+                        TextButton(onClick = {
+                            playbackUrl = null
+                            playingItem = null
+                            pendingSourceUrl = null
+                            pendingSourceName = null
+                            pendingSourceOwner = null
+                        }) { Text("العودة لاختيار مصدر") }
                     }
                 }
             }
