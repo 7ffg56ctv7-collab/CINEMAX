@@ -46,10 +46,13 @@ class SourceHealthStore(private val settings: Settings = Settings()) {
     }.getOrDefault(emptyList())
 
     private fun validLabel(source: String): String? =
-        source.trim().take(256).takeIf { it.isNotBlank() && "://" !in it }
+        source.trim().take(256).takeIf {
+            it.isNotBlank() && "://" !in it && "?token=" !in it.lowercase() &&
+                it.none { c -> c == '\n' || c == '\r' || c == '\u0000' }
+        }
 
     private fun itemKey(item: StremioMetaPreview): String =
-        MediaIdentity.storageKey(item.type, item.id, item.name, item.releaseInfo)
+        MediaIdentity.storageKey(item)
 
     private companion object {
         const val KEY = "raif.sources.userReportedBroken.v1"
