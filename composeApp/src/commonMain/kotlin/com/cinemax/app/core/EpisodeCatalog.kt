@@ -29,6 +29,7 @@ data class StremioEpisode(
 /** Safe mapping of Stremio's metadata videos into watchable TV episodes. */
 object EpisodeCatalog {
     private val json = Json { ignoreUnknownKeys = true }
+    private val legacyImdbEpisode = Regex("^(tt[0-9]{7,10}):([0-9]{1,3}):([0-9]{1,4})$", RegexOption.IGNORE_CASE)
     fun parse(videos: List<JsonObject>): List<StremioEpisode> =
         videos.asSequence()
             .take(1_000) // Bound untrusted provider metadata before allocating episode records.
@@ -77,16 +78,26 @@ object EpisodeCatalog {
 
     /** A saved episode always opens the parent series metadata screen. */
     fun restoreSelection(saved: StremioMetaPreview): Pair<StremioMetaPreview, StremioEpisode>? {
-        val parentId = saved.seriesId?.takeIf { it.isNotBlank() } ?: return null
-        val parentName = saved.seriesName?.takeIf { it.isNotBlank() } ?: return null
         if (saved.id.isBlank() || !saved.type.equals("series", ignoreCase = true)) return null
+        // Older saved histories had no parent fields. Only infer the parent from a
+        // canonical IMDb episode ID AND a caption using our own "Series • Episode".
+        val legacy = legacyImdbEpisode.matchEntire(saved.id)
+            ?.takeIf { " • " in saved.name }
+        val parentId = saved.seriesId?.takeIf { it.isNotBlank() }
+            ?: legacy?.groupValues?.get(1) ?: return null
+        val parentName = saved.seriesName?.takeIf { it.isNotBlank() }
+            ?: legacy?.let { saved.name.substringBefore(" • ").trim() }
+            ?: return null
+        if (parentName.isBlank()) return null
+        val season = saved.episodeSeason ?: legacy?.groupValues?.get(2)?.toIntOrNull()
+        val number = saved.episodeNumber ?: legacy?.groupValues?.get(3)?.toIntOrNull()
         val parent = saved.copy(
             id = parentId, name = parentName,
             seriesId = null, seriesName = null,
             episodeSeason = null, episodeNumber = null, episodeTitle = null
         )
         val episode = StremioEpisode(saved.id, saved.episodeTitle,
-            saved.episodeSeason, saved.episodeNumber)
+            season, number)
         return parent to episode
     }
 
