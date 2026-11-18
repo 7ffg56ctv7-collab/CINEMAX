@@ -68,10 +68,16 @@ jobs:
           test -n "$DEVICE_APP"
           ditto -c -k --sequesterRsrc --keepParent "$SIM_APP" build/CINEMAX-iOS-Simulator.zip
           ditto -c -k --sequesterRsrc --keepParent "$DEVICE_APP" build/CINEMAX-iOS-Device-Unsigned.zip
+          mkdir -p build/unsigned-ipa/Payload
+          ditto "$DEVICE_APP" "build/unsigned-ipa/Payload/CINEMAX.app"
+          (cd build/unsigned-ipa && zip -qry ../CINEMAX-iOS-Unsigned.ipa Payload)
+          test -s build/CINEMAX-iOS-Unsigned.ipa
+          du -h build/CINEMAX-iOS-Unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: CINEMAX-iOS-Builds
           path: |
             build/CINEMAX-iOS-Simulator.zip
             build/CINEMAX-iOS-Device-Unsigned.zip
+            build/CINEMAX-iOS-Unsigned.ipa
           if-no-files-found: error
