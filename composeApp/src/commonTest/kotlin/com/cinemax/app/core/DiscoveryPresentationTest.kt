@@ -242,4 +242,47 @@ class DiscoveryPresentationTest {
             ).map { it.name })
     }
 
+    @Test fun codecFilterDistinguishesH265AndH264() {
+        val streams = listOf(
+            StremioStream(name = "Server HEVC 4K", url = "https://cdn.example/h265"),
+            StremioStream(name = "Server x264 1080p", url = "https://cdn.example/h264")
+        )
+        assertEquals(listOf("H.264", "H.265"), DiscoveryPresentation.availableCodecs(streams))
+        assertEquals(listOf("Server HEVC 4K"),
+            DiscoveryPresentation.sortedStreams(streams, true, codec = "H.265").map { it.name })
+    }
+
+    @Test fun hdrFilterDistinguishesDolbyVisionAndHdr10() {
+        val streams = listOf(
+            StremioStream(name = "4K Dolby Vision", url = "https://cdn.example/dv"),
+            StremioStream(name = "4K HDR10", url = "https://cdn.example/hdr")
+        )
+        assertEquals(listOf("Dolby Vision", "HDR10"), DiscoveryPresentation.availableHdrFormats(streams))
+        assertEquals(listOf("4K HDR10"),
+            DiscoveryPresentation.sortedStreams(streams, true, hdr = "HDR10").map { it.name })
+    }
+
+    @Test fun codecHdrQualityAndProviderFiltersCompose() {
+        val sources = listOf(
+            StremioStream(name = "A • 4K HEVC HDR10", url = "https://cdn.example/a"),
+            StremioStream(name = "B • 4K HEVC HDR10", url = "https://cdn.example/b"),
+            StremioStream(name = "A • 4K x264 HDR10", url = "https://cdn.example/c"),
+            StremioStream(name = "A • 1080p HEVC", url = "https://cdn.example/d")
+        )
+        assertEquals(listOf("A • 4K HEVC HDR10"),
+            DiscoveryPresentation.sortedStreams(sources, true, quality = "4K",
+                provider = "A", codec = "H.265", hdr = "HDR10").map { it.name })
+    }
+
+    @Test fun unknownCodecDoesNotCauseBadFalseMatch() {
+        val streams = listOf(StremioStream(name = "1080p", url = "https://cdn.example/1"))
+        assertEquals(emptyList(), DiscoveryPresentation.availableCodecs(streams))
+        assertTrue(DiscoveryPresentation.sortedStreams(streams, true, codec = "AV1").isEmpty())
+    }
+
+    @Test fun unknownHdrDoesNotTriggerHdrBadge() {
+        val streams = listOf(StremioStream(name = "4K SDR", url = "https://cdn.example/1"))
+        assertEquals(emptyList(), DiscoveryPresentation.availableHdrFormats(streams))
+    }
+
 }
