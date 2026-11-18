@@ -150,6 +150,34 @@ class MediaIdentityTest {
             MediaIdentity.storageKey(one.copy(episodeSeason = 2)))
     }
 
+    @Test fun arabicWawHamzaNormalizesAcrossTitles() {
+        assertEquals(
+            MediaIdentity.key(type = "movie", title = "رؤية", releaseInfo = "2020"),
+            MediaIdentity.key(type = "movie", title = "روية", releaseInfo = "2020")
+        )
+    }
+
+    @Test fun arabicYaaHamzaNormalizesAcrossTitles() {
+        assertEquals(
+            MediaIdentity.key(type = "series", title = "رئيس", releaseInfo = "2021"),
+            MediaIdentity.key(type = "series", title = "رييس", releaseInfo = "2021")
+        )
+    }
+
+    @Test fun extendedArabicMarksDoNotSplitIdentity() {
+        assertEquals(
+            MediaIdentity.key(type = "movie", title = "القُرْآن", releaseInfo = "2020"),
+            MediaIdentity.key(type = "movie", title = "القران", releaseInfo = "2020")
+        )
+    }
+
+    @Test fun arabicWaslaIsNormalizedToAlef() {
+        assertEquals(
+            MediaIdentity.key(type = "movie", title = "ٱمل", releaseInfo = "2020"),
+            MediaIdentity.key(type = "movie", title = "امل", releaseInfo = "2020")
+        )
+    }
+
 }
 
 class StremioAddonClientSecurityTest {
