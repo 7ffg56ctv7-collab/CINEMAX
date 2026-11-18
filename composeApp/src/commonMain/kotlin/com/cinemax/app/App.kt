@@ -528,7 +528,7 @@ fun App() {
                 ) {
                     OutlinedTextField(
                         value = searchQuery,
-                        onValueChange = { searchQuery = it },
+                        onValueChange = { searchQuery = it.take(160) },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                         label = { Text("ابحث في هذا المصدر") }
@@ -815,10 +815,12 @@ fun App() {
             var preferredSourceName by remember(sourceContextItem.id, sourceContextItem.name, sourceContextItem.releaseInfo) {
                 mutableStateOf(sourcePreferenceStore.load(sourceContextItem))
             }
-            var streamQualityFilter by remember(selected.type, selected.id) { mutableStateOf<String?>(null) }
-            var streamProviderFilter by remember(selected.type, selected.id) { mutableStateOf<String?>(null) }
-            var streamAudioFilter by remember(selected.type, selected.id) { mutableStateOf<String?>(null) }
-            var streamSubtitleFilter by remember(selected.type, selected.id) { mutableStateOf<String?>(null) }
+            var streamQualityFilter by remember(sourceContextItem.id, sourceContextItem.name) { mutableStateOf<String?>(null) }
+            var streamProviderFilter by remember(sourceContextItem.id, sourceContextItem.name) { mutableStateOf<String?>(null) }
+            var streamAudioFilter by remember(sourceContextItem.id, sourceContextItem.name) { mutableStateOf<String?>(null) }
+            var streamSubtitleFilter by remember(sourceContextItem.id, sourceContextItem.name) { mutableStateOf<String?>(null) }
+            var streamCodecFilter by remember(sourceContextItem.id, sourceContextItem.name) { mutableStateOf<String?>(null) }
+            var streamHdrFilter by remember(sourceContextItem.id, sourceContextItem.name) { mutableStateOf<String?>(null) }
             Dialog(onDismissRequest = { selectedItem = null; selectedEpisode = null }) {
                 Column(
                     Modifier.fillMaxWidth().heightIn(max = 680.dp)
@@ -960,14 +962,39 @@ fun App() {
                                     label = { Text(label) })
                             }
                         }
+                        val advertisedCodecs = DiscoveryPresentation.availableCodecs(streams.toList())
+                        if (advertisedCodecs.isNotEmpty()) {
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                FilterChip(selected = streamCodecFilter == null,
+                                    onClick = { streamCodecFilter = null }, label = { Text("كل الترميزات") })
+                                advertisedCodecs.forEach { codec ->
+                                    FilterChip(selected = streamCodecFilter == codec,
+                                        onClick = { streamCodecFilter = codec }, label = { Text(codec) })
+                                }
+                            }
+                        }
+                        val advertisedHdr = DiscoveryPresentation.availableHdrFormats(streams.toList())
+                        if (advertisedHdr.isNotEmpty()) {
+                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                FilterChip(selected = streamHdrFilter == null,
+                                    onClick = { streamHdrFilter = null }, label = { Text("كل أنظمة HDR") })
+                                advertisedHdr.forEach { hdr ->
+                                    FilterChip(selected = streamHdrFilter == hdr,
+                                        onClick = { streamHdrFilter = hdr }, label = { Text(hdr) })
+                                }
+                            }
+                        }
                         if (streamQualityFilter != null || streamProviderFilter != null ||
-                            streamAudioFilter != null || streamSubtitleFilter != null
+                            streamAudioFilter != null || streamSubtitleFilter != null ||
+                            streamCodecFilter != null || streamHdrFilter != null
                         ) {
                             TextButton(onClick = {
                                 streamQualityFilter = null
                                 streamProviderFilter = null
                                 streamAudioFilter = null
                                 streamSubtitleFilter = null
+                                streamCodecFilter = null
+                                streamHdrFilter = null
                             }) { Text("مسح تصفية المصادر") }
                         }
                         preferredSourceName?.let { preference ->
@@ -979,11 +1006,13 @@ fun App() {
                         val visibleStreams = DiscoveryPresentation.sortedStreams(
                             streams.toList(), playableSourcesOnly, preferredSourceName,
                             streamQualityFilter, streamProviderFilter, brokenSourceNames,
-                            streamAudioFilter, streamSubtitleFilter, startupTimings
+                            streamAudioFilter, streamSubtitleFilter, startupTimings,
+                            codec = streamCodecFilter, hdr = streamHdrFilter
                         )
                         Text("المصادر المعروضة: " + visibleStreams.size, color = Color.LightGray, fontSize = 11.sp)
                         if (visibleStreams.isEmpty()) {
-                            Text("لا تتوفر روابط تشغيل مباشرة آمنة حاليًا.", color = Color.LightGray, fontSize = 12.sp)
+                            Text("لا توجد مصادر مطابقة للفلاتر الحالية. جرّب مسح التصفية أو اختيار مزوّد آخر.",
+                                color = Color.LightGray, fontSize = 12.sp)
                         }
                         visibleStreams.forEachIndexed { index, stream ->
                             Card(colors = CardDefaults.cardColors(containerColor = Panel)) {
