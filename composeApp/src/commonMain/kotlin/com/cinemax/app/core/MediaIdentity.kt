@@ -93,9 +93,11 @@ object MediaIdentity {
     private fun normalizeTitle(value: String): String = buildString {
         value.trim().lowercase().forEach { char ->
             when {
-                char in '\u064B'..'\u065F' || char == '\u0670' || char == 'ـ' -> Unit
-                char == 'أ' || char == 'إ' || char == 'آ' -> append('ا')
-                char == 'ى' -> append('ي')
+                char in '\u0610'..'\u061A' || char in '\u064B'..'\u065F' ||
+                    char in '\u06D6'..'\u06ED' || char == '\u0670' || char == 'ـ' -> Unit
+                char == 'أ' || char == 'إ' || char == 'آ' || char == 'ٱ' -> append('ا')
+                char == 'ى' || char == 'ئ' -> append('ي')
+                char == 'ؤ' -> append('و')
                 char.isLetterOrDigit() -> append(char)
                 else -> append(' ')
             }
