@@ -59,10 +59,7 @@ class SourceStartupStore(private val settings: Settings = Settings()) {
 
     private fun mediaKey(item: StremioMetaPreview) = MediaIdentity.storageKey(item)
 
-    private fun safeLabel(raw: String): String? =
-        raw.trim().take(256).takeIf {
-            it.isNotBlank() && "://" !in it && it.none { c -> c == '\n' || c == '\r' || c == '\u0000' }
-        }
+    private fun safeLabel(raw: String): String? = SafeSourceLabel.normalize(raw)
 
     private companion object {
         const val KEY = "raif.stream.lastStartupMillis.v1"
