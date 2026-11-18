@@ -655,9 +655,11 @@ fun App() {
                     NativeVideoPlayer(
                         url = mediaUrl,
                         modifier = Modifier.fillMaxWidth().height(260.dp),
-                        initialPositionMillis = playingItem?.let { item ->
-                            watchProgressItems.firstOrNull { it.item.id == item.id }?.positionMillis ?: 0L
-                        } ?: 0L,
+                        initialPositionMillis = if (preferences.rememberPlaybackPosition) {
+                            playingItem?.let { item ->
+                                watchProgressItems.firstOrNull { it.item.id == item.id }?.positionMillis ?: 0L
+                            } ?: 0L
+                        } else 0L,
                         onProgress = { positionMillis, durationMillis ->
                             val item = playingItem
                             if (item != null && preferences.rememberPlaybackPosition) {
@@ -668,8 +670,11 @@ fun App() {
                                     updatedAtEpochMillis = Clock.System.now().toEpochMilliseconds()
                                 )
                                 watchProgressStore.save(progress)
-                                watchProgressItems.removeAll { it.item.id == item.id }
-                                if (positionMillis < durationMillis - 15_000L) watchProgressItems.add(0, progress)
+                                // The store owns completion, sorting and the 30-item limit.
+                                // Reload so the visible list always matches persisted history.
+                                val latestProgress = watchProgressStore.load()
+                                watchProgressItems.clear()
+                                watchProgressItems.addAll(latestProgress)
                             }
                         }
                     )
