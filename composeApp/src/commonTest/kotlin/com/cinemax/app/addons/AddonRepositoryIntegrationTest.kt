@@ -217,6 +217,8 @@ class AddonRepositoryIntegrationTest {
                 AddonRepository(client).loadManifest("https://primary.example/manifest.json")
             }
         } finally { client.close() }
+        // Kotlin/Native XCTest requires test functions to return Unit.
+        Unit
     }
 
     @Test fun duplicateCatalogDefinitionsAreSanitized() = runBlocking {
