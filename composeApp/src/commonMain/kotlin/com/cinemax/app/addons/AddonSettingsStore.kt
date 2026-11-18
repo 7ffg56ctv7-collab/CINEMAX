@@ -15,14 +15,14 @@ class AddonSettingsStore(
     fun load(): List<InstalledAddon> {
         val raw = settings.getStringOrNull(ADDONS_KEY) ?: return emptyList()
         return runCatching {
-            json.decodeFromString(ListSerializer(InstalledAddon.serializer()), raw)
+            sanitize(json.decodeFromString(ListSerializer(InstalledAddon.serializer()), raw))
         }.getOrDefault(emptyList())
     }
 
     fun save(addons: List<InstalledAddon>) {
         settings.putString(
             ADDONS_KEY,
-            json.encodeToString(ListSerializer(InstalledAddon.serializer()), addons)
+            json.encodeToString(ListSerializer(InstalledAddon.serializer()), sanitize(addons))
         )
     }
 
@@ -30,7 +30,16 @@ class AddonSettingsStore(
         settings.remove(ADDONS_KEY)
     }
 
+    /** Reject broken or insecure old entries and retain only the latest version per addon ID. */
+    private fun sanitize(addons: List<InstalledAddon>): List<InstalledAddon> =
+        addons.mapNotNull { addon ->
+            val manifest = StremioAddonClient.manifestUrl(addon.manifestUrl)
+            if (manifest == null || addon.id.isBlank() || addon.name.isBlank() || addon.version.isBlank()) null
+            else addon.copy(manifestUrl = manifest, installedAtEpochMillis = addon.installedAtEpochMillis.coerceAtLeast(0L))
+        }.asReversed().distinctBy { it.id }.asReversed().takeLast(MAX_ADDONS)
+
     private companion object {
         const val ADDONS_KEY = "cinemax.installed.addons.v1"
+        const val MAX_ADDONS = 100
     }
 }

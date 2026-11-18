@@ -5,14 +5,16 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   ios-simulator-app:
     runs-on: macos-15
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -22,19 +24,32 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.14'
+      - name: Run common Kotlin tests
+        id: kotlin_tests
+        continue-on-error: true
+        run: gradle :composeApp:iosSimulatorArm64Test
+      - name: Upload Kotlin/Native test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: RAIF-iOS-Test-Reports
+          path: |
+            composeApp/build/reports/tests/iosSimulatorArm64Test/
+            composeApp/build/test-results/iosSimulatorArm64Test/
+          if-no-files-found: warn
       - name: Install icon tooling
         run: |
           brew install xcodegen librsvg
           rsvg-convert -w 1024 -h 1024 iosApp/Resources/cinemax-icon.svg > iosApp/Sources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
       - name: Build iPhone device framework
-        run: gradle :composeApp:linkDebugFrameworkIosArm64
+        run: gradle :composeApp:linkReleaseFrameworkIosArm64
       - name: Build iOS Simulator framework
-        run: gradle :composeApp:linkDebugFrameworkIosSimulatorArm64
+        run: gradle :composeApp:linkReleaseFrameworkIosSimulatorArm64
       - name: Assemble universal XCFramework
         run: |
           xcodebuild -create-xcframework \
-            -framework composeApp/build/bin/iosArm64/debugFramework/CinemaxKit.framework \
-            -framework composeApp/build/bin/iosSimulatorArm64/debugFramework/CinemaxKit.framework \
+            -framework composeApp/build/bin/iosArm64/releaseFramework/CinemaxKit.framework \
+            -framework composeApp/build/bin/iosSimulatorArm64/releaseFramework/CinemaxKit.framework \
             -output composeApp/build/CinemaxKit.xcframework
       - name: Generate native Xcode project
         working-directory: iosApp
@@ -45,7 +60,7 @@ jobs:
             -project iosApp/CINEMAX.xcodeproj \
             -scheme CINEMAX \
             -sdk iphonesimulator \
-            -configuration Debug \
+            -configuration Release \
             -derivedDataPath build/ios-simulator-derived \
             ARCHS=arm64 \
             ONLY_ACTIVE_ARCH=YES \
@@ -57,27 +72,42 @@ jobs:
             -project iosApp/CINEMAX.xcodeproj \
             -scheme CINEMAX \
             -sdk iphoneos \
-            -configuration Debug \
+            -configuration Release \
             -derivedDataPath build/ios-device-derived \
             CODE_SIGNING_ALLOWED=NO
       - name: Package iOS build outputs
         run: |
-          SIM_APP=$(find build/ios-simulator-derived/Build/Products -maxdepth 2 -name 'CINEMAX.app' -type d | head -n 1)
-          DEVICE_APP=$(find build/ios-device-derived/Build/Products -maxdepth 2 -name 'CINEMAX.app' -type d | head -n 1)
+          SIM_APP=$(find build/ios-simulator-derived/Build/Products -maxdepth 2 -name 'RAIF.app' -type d | head -n 1)
+          DEVICE_APP=$(find build/ios-device-derived/Build/Products -maxdepth 2 -name 'RAIF.app' -type d | head -n 1)
           test -n "$SIM_APP"
           test -n "$DEVICE_APP"
-          ditto -c -k --sequesterRsrc --keepParent "$SIM_APP" build/CINEMAX-iOS-Simulator.zip
-          ditto -c -k --sequesterRsrc --keepParent "$DEVICE_APP" build/CINEMAX-iOS-Device-Unsigned.zip
-          mkdir -p build/unsigned-ipa/Payload
-          ditto "$DEVICE_APP" "build/unsigned-ipa/Payload/CINEMAX.app"
-          (cd build/unsigned-ipa && zip -qry ../CINEMAX-iOS-Unsigned.ipa Payload)
-          test -s build/CINEMAX-iOS-Unsigned.ipa
-          du -h build/CINEMAX-iOS-Unsigned.ipa
+          ditto -c -k --sequesterRsrc --keepParent "$SIM_APP" build/RAIF-iOS-Simulator.zip
+          ditto -c -k --sequesterRsrc --keepParent "$DEVICE_APP" build/RAIF-iOS-Device-Unsigned.zip
+          # Reject development-only Swift dylibs and validate device executable.
+          if find "$DEVICE_APP" -type f \( -name '*.debug.dylib' -o -name '__preview.dylib' \) | grep -q .; then
+            echo "Development dylibs detected in release app" >&2
+            exit 1
+          fi
+          APP_EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print CFBundleExecutable' "$DEVICE_APP/Info.plist")
+          test -f "$DEVICE_APP/$APP_EXECUTABLE"
+          file "$DEVICE_APP/$APP_EXECUTABLE" | grep -q 'Mach-O'
+          /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$DEVICE_APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$DEVICE_APP/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$DEVICE_APP/Info.plist"
+          mkdir -p build/ipa/Payload
+          ditto "$DEVICE_APP" build/ipa/Payload/RAIF.app
+          (cd build/ipa && zip -q -r ../RAIF-iPhone-Unsigned.ipa Payload)
+          unzip -t build/RAIF-iPhone-Unsigned.ipa
       - uses: actions/upload-artifact@v4
         with:
-          name: CINEMAX-iOS-Builds
+          name: RAIF-iOS-Builds
           path: |
-            build/CINEMAX-iOS-Simulator.zip
-            build/CINEMAX-iOS-Device-Unsigned.zip
-            build/CINEMAX-iOS-Unsigned.ipa
+            build/RAIF-iOS-Simulator.zip
+            build/RAIF-iOS-Device-Unsigned.zip
+            build/RAIF-iPhone-Unsigned.ipa
           if-no-files-found: error
+      - name: Enforce Kotlin test result
+        if: always() && steps.kotlin_tests.outcome == 'failure'
+        run: |
+          echo "Kotlin/Native tests failed; see RAIF-iOS-Test-Reports artifact."
+          exit 1
