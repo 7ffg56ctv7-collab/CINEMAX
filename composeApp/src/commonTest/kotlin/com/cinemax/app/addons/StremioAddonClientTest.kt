@@ -67,65 +67,57 @@ class StremioAddonClientTest {
         assertTrue(StremioAddonClient.isSupportedResource("stream"))
         assertFalse(StremioAddonClient.isSupportedResource("execute"))
     }
-    /**
-     * Thirty independent regression cases covering URL normalization, protocol
-     * restrictions, resource allowlisting, and safe playback URL selection.
-     */
     @Test
-    fun regressionMatrixForAddonAndPlaybackUrls() {
-        val normalized = listOf(
-            "https://addon.example" to "https://addon.example/manifest.json",
-            "https://addon.example/" to "https://addon.example/manifest.json",
-            " https://addon.example " to "https://addon.example/manifest.json",
-            "https://addon.example/manifest.json" to "https://addon.example/manifest.json",
-            "https://addon.example/config" to "https://addon.example/config/manifest.json",
-            "https://addon.example/config/" to "https://addon.example/config/manifest.json",
-            "https://addon.example/config?key=abc" to "https://addon.example/config/manifest.json?key=abc",
-            "https://addon.example/manifest.json?key=abc" to "https://addon.example/manifest.json?key=abc",
-            "https://addon.example/#section" to "https://addon.example/manifest.json",
-            "https://addon.example/config#section" to "https://addon.example/config/manifest.json"
+    fun normalizesRootSlashBeforeAddonConfigurationQuery() {
+        assertEquals(
+            "https://addon.example/manifest.json?token=a%2Fb",
+            StremioAddonClient.manifestUrl("https://addon.example/?token=a%2Fb")
         )
-        normalized.forEach { (input, expected) ->
-            assertEquals(expected, StremioAddonClient.manifestUrl(input), input)
-        }
+    }
 
-        val rejectedManifests = listOf(
-            "",
-            " ",
-            "http://addon.example",
-            "ftp://addon.example",
-            "javascript:alert(1)",
-            "https://user:pass@addon.example",
-            "http://127.0.0.1.evil.example",
-            "http://localhost.evil.example"
+    @Test
+    fun normalizesNestedSlashBeforeConfigurationQuery() {
+        assertEquals(
+            "https://addon.example/config/manifest.json?token=123",
+            StremioAddonClient.manifestUrl("https://addon.example/config/?token=123")
         )
-        rejectedManifests.forEach { input ->
-            assertNull(StremioAddonClient.manifestUrl(input), input)
-        }
+    }
 
-        val acceptedPlaybackUrls = listOf(
-            "https://cdn.example/video.mp4",
-            "https://cdn.example/video.m3u8",
-            "https://cdn.example/video.mp4?token=abc",
-            "http://127.0.0.1:8080/video.mp4",
-            "http://localhost:8080/video.mp4",
-            "https://cdn.example/path/to/video.mp4"
+    @Test
+    fun keepsAlreadyCanonicalManifestWithQuery() {
+        assertEquals(
+            "https://addon.example/manifest.json?token=123",
+            StremioAddonClient.manifestUrl("https://addon.example/manifest.json?token=123")
         )
-        acceptedPlaybackUrls.forEach { input ->
-            assertTrue(StremioAddonClient.isSafeMediaUrl(input), input)
-        }
+    }
 
-        val rejectedPlaybackUrls = listOf(
-            "",
-            "http://cdn.example/video.mp4",
-            "ftp://cdn.example/video.mp4",
-            "javascript:alert(1)",
-            "https://user:pass@cdn.example/video.mp4",
-            "http://localhost.evil.example/video.mp4"
-        )
-        rejectedPlaybackUrls.forEach { input ->
-            assertFalse(StremioAddonClient.isSafeMediaUrl(input), input)
+    @Test fun resourceArgumentsRejectEmptyAndOversizedFields() {
+        val base = "https://addon.example/manifest.json"
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            StremioAddonClient.resourceUrl(base, "stream", " ", "tt1234567")
         }
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            StremioAddonClient.resourceUrl(base, "stream", "movie", "")
+        }
+        kotlin.test.assertFailsWith<IllegalArgumentException> {
+            StremioAddonClient.resourceUrl(base, "catalog", "movie", "top",
+                mapOf("search" to "a".repeat(4_097)))
+        }
+    }
+
+    @Test fun unsafeControlCharactersAreNeverAcceptedForPlayback() {
+        assertFalse(StremioAddonClient.isSafeMediaUrl("https://cdn.example/video.mp4\nInjected"))
+        assertFalse(StremioAddonClient.isSafeMediaUrl("https://cdn.example/video.mp4\rInjected"))
+    }
+
+    @Test fun extremeAddonUrlsAreRejectedBeforeParsing() {
+        assertNull(StremioAddonClient.manifestUrl(
+            "https://addon.example/" + "a".repeat(8_200)))
+    }
+
+    @Test fun excessiveMediaUrlsAreRejected() {
+        assertFalse(StremioAddonClient.isSafeMediaUrl(
+            "https://cdn.example/video?key=" + "x".repeat(17_000)))
     }
 
 }

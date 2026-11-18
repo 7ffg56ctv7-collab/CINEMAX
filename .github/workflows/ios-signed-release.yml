@@ -38,6 +38,9 @@ jobs:
         with:
           gradle-version: '8.14'
 
+      - name: Run iOS tests before signing
+        run: gradle :composeApp:iosSimulatorArm64Test
+
       - name: Build release Kotlin frameworks
         run: |
           gradle :composeApp:linkReleaseFrameworkIosArm64

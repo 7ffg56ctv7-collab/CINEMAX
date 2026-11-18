@@ -41,7 +41,13 @@ data class StremioMetaPreview(
     val background: String? = null,
     val description: String? = null,
     val releaseInfo: String? = null,
-    val imdbRating: String? = null
+    val imdbRating: String? = null,
+    // Backward-compatible resume context for individual TV episodes.
+    val seriesId: String? = null,
+    val seriesName: String? = null,
+    val episodeSeason: Int? = null,
+    val episodeNumber: Int? = null,
+    val episodeTitle: String? = null
 )
 
 @Serializable
@@ -63,7 +69,8 @@ data class StremioMeta(
     val genres: List<String> = emptyList(),
     val director: List<String> = emptyList(),
     val cast: List<String> = emptyList(),
-    val videos: List<JsonObject> = emptyList()
+    val videos: List<JsonObject> = emptyList(),
+    val hasScheduledVideos: Boolean = false
 )
 
 @Serializable

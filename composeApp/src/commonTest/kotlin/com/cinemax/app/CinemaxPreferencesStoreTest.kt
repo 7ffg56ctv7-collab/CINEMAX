@@ -8,8 +8,8 @@ import kotlin.test.assertTrue
 
 class CinemaxPreferencesStoreTest {
     @Test
-    fun savesAndRestoresAppearanceAndPlaybackPreferences() {
-        val store = CinemaxPreferencesStore(MapSettings())
+    fun savesAndRestoresAppearanceAndPlaybackPreferencesAcrossStoreInstances() {
+        val settings = MapSettings()
         val expected = CinemaxPreferences(
             accent = "Blue",
             oledBlack = false,
@@ -20,9 +20,9 @@ class CinemaxPreferencesStoreTest {
             preferredAudioLanguage = "ar"
         )
 
-        store.save(expected)
+        CinemaxPreferencesStore(settings).save(expected)
 
-        assertEquals(expected, store.load())
+        assertEquals(expected, CinemaxPreferencesStore(settings).load())
     }
 
     @Test
@@ -35,5 +35,38 @@ class CinemaxPreferencesStoreTest {
         assertTrue(preferences.rememberPlaybackPosition)
         assertFalse(preferences.autoplayNextEpisode)
         assertEquals("ar", preferences.preferredSubtitleLanguage)
+        assertEquals("device", preferences.preferredAudioLanguage)
+    }
+
+    @Test
+    fun unsupportedStoredOptionsFallBackToSafeDefaults() {
+        val settings = MapSettings().apply {
+            putString("cinemax.ui.accent", "NotATheme")
+            putString("cinemax.subtitle.language", "xx")
+            putString("cinemax.audio.language", "unknown")
+        }
+
+        val preferences = CinemaxPreferencesStore(settings).load()
+
+        assertEquals("Violet", preferences.accent)
+        assertEquals("ar", preferences.preferredSubtitleLanguage)
+        assertEquals("device", preferences.preferredAudioLanguage)
+    }
+
+    @Test
+    fun savingUnsupportedOptionsStoresSafeDefaults() {
+        val settings = MapSettings()
+        CinemaxPreferencesStore(settings).save(
+            CinemaxPreferences(
+                accent = "invalid",
+                preferredSubtitleLanguage = "xx",
+                preferredAudioLanguage = "unknown"
+            )
+        )
+
+        val preferences = CinemaxPreferencesStore(settings).load()
+        assertEquals("Violet", preferences.accent)
+        assertEquals("ar", preferences.preferredSubtitleLanguage)
+        assertEquals("device", preferences.preferredAudioLanguage)
     }
 }
