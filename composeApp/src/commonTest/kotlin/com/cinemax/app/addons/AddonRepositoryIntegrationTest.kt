@@ -326,4 +326,48 @@ class AddonRepositoryIntegrationTest {
         } finally { client.close() }
     }
 
+    @Test fun hugeManifestIsRejectedBeforeJsonDecoding() = runBlocking {
+        val client = HttpClient(MockEngine {
+            respond(" ".repeat(256 * 1024 + 1), headers = header)
+        })
+        try {
+            kotlin.test.assertFailsWith<IllegalArgumentException> {
+                AddonRepository(client).loadManifest("https://primary.example/manifest.json")
+            }
+        } finally { client.close() }
+    }
+
+    @Test fun hugeCatalogIsRejectedBeforeJsonDecoding() = runBlocking {
+        val client = HttpClient(MockEngine {
+            respond(" ".repeat(2 * 1024 * 1024 + 1), headers = header)
+        })
+        try {
+            kotlin.test.assertFailsWith<IllegalArgumentException> {
+                AddonRepository(client).loadCatalog("https://primary.example/manifest.json", "movie", "top")
+            }
+        } finally { client.close() }
+    }
+
+    @Test fun hugeMetadataIsRejectedBeforeJsonDecoding() = runBlocking {
+        val client = HttpClient(MockEngine {
+            respond(" ".repeat(4 * 1024 * 1024 + 1), headers = header)
+        })
+        try {
+            kotlin.test.assertFailsWith<IllegalArgumentException> {
+                AddonRepository(client).loadMeta("https://primary.example/manifest.json", "movie", "tt1234567")
+            }
+        } finally { client.close() }
+    }
+
+    @Test fun hugeStreamListIsRejectedBeforeJsonDecoding() = runBlocking {
+        val client = HttpClient(MockEngine {
+            respond(" ".repeat(2 * 1024 * 1024 + 1), headers = header)
+        })
+        try {
+            kotlin.test.assertFailsWith<IllegalArgumentException> {
+                AddonRepository(client).loadStreams("https://primary.example/manifest.json", "movie", "tt1234567")
+            }
+        } finally { client.close() }
+    }
+
 }
