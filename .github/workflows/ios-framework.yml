@@ -26,7 +26,6 @@ jobs:
           gradle-version: '8.14'
       - name: Run common Kotlin tests
         id: kotlin_tests
-        continue-on-error: true
         run: gradle :composeApp:iosSimulatorArm64Test
       - name: Upload Kotlin/Native test diagnostics
         if: always()
@@ -106,8 +105,3 @@ jobs:
             build/RAIF-iOS-Device-Unsigned.zip
             build/RAIF-iPhone-Unsigned.ipa
           if-no-files-found: error
-      - name: Enforce Kotlin test result
-        if: always() && steps.kotlin_tests.outcome == 'failure'
-        run: |
-          echo "Kotlin/Native tests failed; see RAIF-iOS-Test-Reports artifact."
-          exit 1
