@@ -10,7 +10,7 @@ import io.ktor.http.encodeURLPathPart
  */
 object StremioAddonClient {
     fun manifestUrl(input: String): String? {
-        val value = input.trim().substringBefore('#').removeSuffix("/")
+        val value = input.trim().substringBefore('#')
         if (value.isBlank()) return null
         val parsed = try {
             Url(value)
@@ -24,9 +24,9 @@ object StremioAddonClient {
         if (parsed.host.isBlank()) return null
         if (!parsed.user.isNullOrEmpty() || !parsed.password.isNullOrEmpty()) return null
         val queryIndex = value.indexOf('?').takeIf { it >= 0 } ?: value.length
-        val path = value.substring(0, queryIndex)
+        val path = value.substring(0, queryIndex).removeSuffix("/")
         val query = value.substring(queryIndex)
-        return if (path.endsWith("/manifest.json")) value else "$path/manifest.json$query"
+        return if (path.endsWith("/manifest.json")) "$path$query" else "$path/manifest.json$query"
     }
 
     /**
@@ -41,6 +41,8 @@ object StremioAddonClient {
         extra: Map<String, String> = emptyMap()
     ): String {
         require(isSupportedResource(resource)) { "Unsupported Stremio resource" }
+        require(type.isNotBlank() && id.isNotBlank()) { "Stremio resource type and ID are required" }
+        require(manifestUrl(baseManifestUrl) != null) { "Unsafe addon manifest URL" }
         val withoutFragment = baseManifestUrl.substringBefore('#')
         val queryIndex = withoutFragment.indexOf('?').takeIf { it >= 0 } ?: withoutFragment.length
         val manifestPath = withoutFragment.substring(0, queryIndex)
