@@ -588,7 +588,7 @@ fun App() {
             } else {
                 items(visibleItems, key = { item ->
                     MediaIdentity.storageKey(item)
-                }) { item -> item ->
+                }) { item ->
                         Card(
                             modifier = Modifier.fillMaxWidth().clickable {
                                 selectedEpisode = null
