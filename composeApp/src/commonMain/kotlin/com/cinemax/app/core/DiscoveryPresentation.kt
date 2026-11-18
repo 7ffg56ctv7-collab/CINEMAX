@@ -148,6 +148,13 @@ object DiscoveryPresentation {
     fun availableProviders(streams: List<StremioStream>): List<String> =
         streams.map(::providerLabel).distinct().sorted()
 
+    /** Only offer codec/HDR filters when at least one addon actually advertises them. */
+    fun availableCodecs(streams: List<StremioStream>): List<String> =
+        streams.mapNotNull(::codecLabel).distinct().sorted()
+
+    fun availableHdrFormats(streams: List<StremioStream>): List<String> =
+        streams.mapNotNull(::hdrLabel).distinct().sorted()
+
     fun isPlayable(stream: StremioStream): Boolean =
         stream.url?.let { StremioAddonClient.isSafeMediaUrl(it) } == true
 
@@ -170,7 +177,9 @@ object DiscoveryPresentation {
         brokenLabels: Set<String> = emptySet(),
         audio: String? = null,
         subtitle: String? = null,
-        startupMillis: Map<String, Long> = emptyMap()
+        startupMillis: Map<String, Long> = emptyMap(),
+        codec: String? = null,
+        hdr: String? = null
     ): List<StremioStream> =
         streams.asSequence()
             .filter { !playableOnly || isPlayable(it) }
@@ -178,6 +187,8 @@ object DiscoveryPresentation {
             .filter { provider == null || providerLabel(it) == provider }
             .filter { audio == null || audioLabel(it) == audio }
             .filter { subtitle == null || subtitleLabel(it) == subtitle }
+            .filter { codec == null || codecLabel(it) == codec }
+            .filter { hdr == null || hdrLabel(it) == hdr }
             .sortedWith(
                 compareByDescending<StremioStream> { isPlayable(it) }
                     .thenBy { (it.name ?: it.title ?: "مصدر") in brokenLabels }
