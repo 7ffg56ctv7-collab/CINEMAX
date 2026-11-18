@@ -28,7 +28,9 @@ class AddonRepository(
             ?: throw IllegalArgumentException("رابط الإضافة يجب أن يبدأ بـ https://")
         val response = http.get(url)
         require(response.status.isSuccess()) { "Addon manifest request failed: ${response.status.value}" }
-        val manifest = json.decodeFromString<StremioManifest>(response.bodyAsText())
+        val manifest = json.decodeFromString<StremioManifest>(
+            checkedResponse(response.bodyAsText(), MAX_MANIFEST_RESPONSE_CHARS, "manifest")
+        )
         require(manifest.id.isNotBlank() && manifest.id.length <= 256) { "Invalid addon identifier" }
         require(manifest.name.isNotBlank() && manifest.name.length <= 256) { "Invalid addon name" }
         require(manifest.version.isNotBlank() && manifest.version.length <= 128) { "Invalid addon version" }
@@ -51,7 +53,9 @@ class AddonRepository(
         val url = StremioAddonClient.resourceUrl(base, "catalog", type, catalogId, extra)
         val response = http.get(url)
         require(response.status.isSuccess()) { "Addon catalog request failed: ${response.status.value}" }
-        return json.decodeFromString<StremioCatalogResponse>(response.bodyAsText()).metas
+        return json.decodeFromString<StremioCatalogResponse>(
+            checkedResponse(response.bodyAsText(), MAX_CATALOG_RESPONSE_CHARS, "catalog")
+        ).metas
             .filter { it.id.isNotBlank() && it.type.isNotBlank() && it.name.isNotBlank() &&
                 it.id.length <= 512 && it.name.length <= 512 }
             .distinctBy { "${it.type.lowercase()}:${it.id}" }
@@ -80,7 +84,9 @@ class AddonRepository(
         val url = StremioAddonClient.resourceUrl(validatedBase(manifestUrl), "meta", type, mediaId)
         val response = http.get(url)
         require(response.status.isSuccess()) { "Addon metadata request failed: ${response.status.value}" }
-        return json.decodeFromString<StremioMetaResponse>(response.bodyAsText()).meta
+        return json.decodeFromString<StremioMetaResponse>(
+            checkedResponse(response.bodyAsText(), MAX_META_RESPONSE_CHARS, "metadata")
+        ).meta
             ?.let { it.copy(videos = it.videos.take(MAX_EPISODE_METADATA)) }
     }
 
@@ -88,7 +94,9 @@ class AddonRepository(
         val url = StremioAddonClient.resourceUrl(validatedBase(manifestUrl), "stream", type, mediaId)
         val response = http.get(url)
         require(response.status.isSuccess()) { "Addon streams request failed: ${response.status.value}" }
-        return json.decodeFromString<StremioStreamResponse>(response.bodyAsText()).streams
+        return json.decodeFromString<StremioStreamResponse>(
+            checkedResponse(response.bodyAsText(), MAX_STREAM_RESPONSE_CHARS, "streams")
+        ).streams
             .filter { it.url.isNullOrBlank() || StremioAddonClient.isSafeMediaUrl(it.url.trim()) }
             .map { stream -> stream.copy(url = stream.url?.trim()?.takeIf { it.isNotEmpty() }) }
             .take(MAX_STREAMS_PER_TITLE)
@@ -212,7 +220,18 @@ class AddonRepository(
         }
     }
 
+    private fun checkedResponse(content: String, limit: Int, category: String): String {
+        require(content.length <= limit) { "Addon $category response is too large" }
+        return content
+    }
+
     private companion object {
+        // Byte size will be at least this large for ASCII JSON; limiting before
+        // parsing protects memory even if an addon sends excessive nested arrays.
+        const val MAX_MANIFEST_RESPONSE_CHARS = 256 * 1024
+        const val MAX_CATALOG_RESPONSE_CHARS = 2 * 1024 * 1024
+        const val MAX_META_RESPONSE_CHARS = 4 * 1024 * 1024
+        const val MAX_STREAM_RESPONSE_CHARS = 2 * 1024 * 1024
         const val MAX_PARALLEL_ADDONS = 3
         const val MAX_DISCOVERY_ADDONS = 12
         const val MAX_MATCHED_TITLES = 4
